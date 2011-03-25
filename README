@@ -20,6 +20,11 @@ distributed under a GPLv3 license [8].
 
 Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
 
+Note that the Perspective-Server code is included as a git submodule. After cloning the git repo, use the following commands to pull in the Perspectives-Server code:
+
+% git submodule init
+% git submodule update
+
 ---
 
 [1] http://www.networknotary.org/
