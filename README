@@ -1,0 +1,32 @@
+PerProxy will be a simple HTTP proxy that uses Perspectives [1] to
+monitor SSL connections, detect and thwart SSL attempts using
+fradulent certificates (e.g. [3,4]). It is not in any way intended to
+replace the Perspectives Firefox extension [2], but to serve in
+instances when the extension cannot be used (e.g. you are using
+another browser, a version of Firefox that doesn't support the
+extension).
+
+Currently PerProxy is a work in progress. At this time it parses the
+SSL handshake and extracts the server certificate, but does no more
+than that. Adding the check to Perspectives using the python
+Perspective-Server code [5] is next. Figuring out the right way to
+reject the connection and get a useful message to the broser and user
+is a challenge to be tackled.
+
+This code is freely distributed under an MIT license [6]. This code is
+based on and includes the python-proxy code [7], which is also
+distributed under the MIT license. The Perspectives-Server code is
+distributed under a GPLv3 license [8].
+
+Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
+
+---
+
+[1] http://www.networknotary.org/
+[2] http://www.networknotary.org/firefox.html
+[3] https://www.eff.org/deeplinks/2011/03/iranian-hackers-obtain-fraudulent-https
+[4] http://crypto.stanford.edu/ssl-mitm/
+[5] https://github.com/danwent/Perspectives-Server
+[6] http://www.opensource.org/licenses/mit-license.php
+[7] https://code.google.com/p/python-proxy/
+[8] http://www.gnu.org/licenses/gpl-3.0.html
