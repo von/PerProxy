@@ -15,8 +15,7 @@ def main():
     print "Got {} responses from {} notaries".format(len(valid_responses),
                                                      len(responses))
     for response in valid_responses:
-        print "Response from {}:".format(response.notary)
-        print response.xml
+        print response
 
 if __name__ == "__main__":
     sys.exit(main())

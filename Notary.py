@@ -1,5 +1,6 @@
 """Class for representing Perspective Notaries"""
 
+import M2Crypto
 import re
 import urllib
 import xml.dom.minidom
@@ -119,7 +120,14 @@ class Notary:
             elif line == "-----BEGIN PUBLIC KEY-----":
                 if hostname is None:
                     raise NotaryException("Public key found without Notary")
-                public_key = cls._read_public_key_from_stream(stream)
+                lines = [line + "\n"]
+                for line in stream:
+                    lines.append(line)
+                    if line.startswith("-----END PUBLIC KEY-----"):
+                        break
+                else:
+                    raise NotaryException("No closing 'END PUBLIC KEY' line for key found")
+                public_key = cls._public_key_from_lines(lines)
                 break  # End of Notary
             else:
                 raise NotaryException("Unrecognized line: " + line)
@@ -131,16 +139,11 @@ class Notary:
         return Notary(hostname, port, public_key)
 
     @classmethod
-    def _read_public_key_from_stream(cls, stream):
-        """Read and return public key, consuming ending "END PUBLIC KEY" line"""
-        pub_key = ""
-        for line in stream:
-            line = line.strip()
-            if line == "-----END PUBLIC KEY-----":
-                break
-            pub_key += line
-        else:
-            raise NotaryException("No closing 'END PUBLIC KEY' line found")
+    def _public_key_from_lines(cls, lines):
+        """Read and return public key from lines"""
+        bio = M2Crypto.BIO.MemoryBuffer("".join(lines))
+        pub_key = M2Crypto.EVP.PKey()
+        pub_key.assign_rsa(M2Crypto.RSA.load_pub_key_bio(bio))
         return pub_key
 
 class NotaryResponseException(Exception):
@@ -163,10 +166,54 @@ class NotaryResponse:
     def _parse_xml(self):
         """Parse self.xml setting other attributes on self"""
         self.dom = xml.dom.minidom.parseString(self.xml)
-        doc_element = self.dom.documentElement.tagName
-        if doc_element != "notary_reply":
-            raise NotaryResponseException("Unrecognized document element: {}".format(doc_element))
+        doc_element = self.dom.documentElement
+        if doc_element.tagName != "notary_reply":
+            raise NotaryResponseException("Unrecognized document element: {}".format(doc_element.tagName))
+        self.version = doc_element.getAttribute("version")
+        self.sig_type = doc_element.getAttribute("sig_type")
+        # Signature has newlines which get converted to spaces, use
+        # repalce() to remove.
+        self.sig = doc_element.getAttribute("sig").replace(" ","")
+        keys = doc_element.getElementsByTagName("key")
+        self.keys = [NotaryResponseKey(key) for key in keys]
         
     def __str__(self):
-        return self.dom.toxml()
+        s = "Response from {} regarding {}:{} type {}\n".format(self.notary,
+                                                                self.hostname,
+                                                                self.port,
+                                                                self.type)
+        s += "\tVersion: {} Signature type: {}\n".format(self.version,
+                                                         self.sig_type)
+        s += "\tSig: {}\n".format(self.sig)
+        for key in self.keys:
+            s += str(key)
+        return s
         
+class NotaryResponseKey:
+    """Key from a Notary response"""
+
+    def __init__(self, dom):
+        """Create NotaryResponseKey from dom"""
+        if dom.tagName != "key":
+            raise NotaryResponseException("Unrecognized key element: {}".format(dom.tagName))
+        self.type = dom.getAttribute("type")
+        self.fingerprint = bytearray([int(n,16) for n in dom.getAttribute("fp").split(":")])
+        self.timespans = [NotaryResponseTimeSpan(e)
+                          for e in dom.getElementsByTagName("timestamp")]
+
+    def __str__(self):
+        fp = ":".join(["{:02x}".format(n) for n in self.fingerprint])
+        s = "Fingerprint: {} type: {}\n".format(fp, self.type)
+        for t in self.timespans:
+            s+= "\tStart: {} End: {}\n".format(t.start, t.end)
+        return s
+
+class NotaryResponseTimeSpan:
+    """Time span (Timestamp) from a Notary response"""
+
+    def __init__(self, dom):
+        """Create NoraryResponseTimeSpan from dom"""
+        if dom.tagName != "timestamp":
+            raise NotaryResponseException("Unrecognized timespan element: {}".format(dom.tagName))
+        self.start = int(dom.getAttribute("start"))
+        self.end = int(dom.getAttribute("end"))
