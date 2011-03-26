@@ -8,6 +8,62 @@ class NotaryException(Exception):
     """Exception related to a Notary"""
     pass
 
+class Notaries(list):
+    """Class for representing the set of trusted Notaries"""
+
+    @classmethod
+    def from_file(cls, file_path):
+        """Return Notaries described in file.
+
+        See from_stream() for expected format."""
+        with file(file_path, "r") as f:
+            notaries = cls.from_stream(f)
+        return notaries
+
+    @classmethod
+    def from_stream(cls, stream):
+        """Return Notaries described in given stream.
+
+        Expected format for each Notary is:
+        # Lines starting with '#' are comments and ignored
+        <hostname>:<port>
+        -----BEGIN PUBLIC KEY-----
+        <multiple lines of Base64-encoded data>
+        -----END PUBLIC KEY----
+        """
+        notaries = Notaries()
+        while True:
+            notary = Notary.from_stream(stream)
+            if notary is None:  # EOF
+                break
+            else:
+                notaries.append(notary)
+        return notaries
+
+    def query(self, service_hostname, port, type):
+        """Query all Notaries and return array of Responses.
+
+        For any Notary not responding, a None will be in the array."""
+        responses = []
+        for notary in self:
+            self._debug("Querying {}...".format(notary))
+            try:
+                response = notary.query(service_hostname,
+                                        port,
+                                        type)
+                self._debug("Got response from {}".format(notary))
+                responses.append(response)
+            except Exception as e:
+                self._debug("No response from {}: {}".format(notary, e))
+                responses.append(None)
+        return responses
+
+    def __str__(self):
+        return "[" + ",".join([str(n) for n in self]) + "]"
+
+    def _debug(self, msg):
+        print msg
+
 class Notary:
     """Class for representing Perspective Notary"""
 
@@ -38,17 +94,8 @@ class Notary:
         return NotaryResponse(response, self, service_hostname, port, type, url)
 
     @classmethod
-    def notaries_from_file(cls, file_path):
-        """Return an array of notaries described in file.
-
-        See notaries_from_stream() for expected format."""
-        with file(file_path, "r") as f:
-            notaries = cls.notaries_from_stream(f)
-        return notaries
-
-    @classmethod
-    def notaries_from_stream(cls, stream):
-        """Return an array of notaries described in given stream.
+    def from_stream(cls, stream):
+        """Return Notary described in given stream.
 
         Expected format is:
         # Lines starting with '#' are comments and ignored
@@ -56,8 +103,9 @@ class Notary:
         -----BEGIN PUBLIC KEY-----
         <multiple lines of Base64-encoded data>
         -----END PUBLIC KEY----
+
+        If EOF is found before a Notary, returns None.
         """
-        notaries = []
         hostname, port, public_key = None, None, None
         hostname_port_re = re.compile("(\S+):(\d+)")
         for line in stream:
@@ -72,10 +120,15 @@ class Notary:
                 if hostname is None:
                     raise NotaryException("Public key found without Notary")
                 public_key = cls._read_public_key_from_stream(stream)
-                notaries.append(Notary(hostname, port, public_key))
+                break  # End of Notary
             else:
                 raise NotaryException("Unrecognized line: " + line)
-        return notaries
+        if hostname is None:
+            # We hit EOF before finding a Notary
+            return None
+        if public_key is None:
+            raise NotaryException("No public key found for Notary {}:{}".format(hostname, port))
+        return Notary(hostname, port, public_key)
 
     @classmethod
     def _read_public_key_from_stream(cls, stream):
