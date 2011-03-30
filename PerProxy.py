@@ -7,11 +7,6 @@ import socket
 import PythonProxy
 import TLS
 
-from tlslite import constants
-from tlslite import messages
-from tlslite.utils import codec
-from tlslite.utils import compat
-
 SSL_RECORD_LENGTH = 5
 
 class PerspectivesException(Exception):
