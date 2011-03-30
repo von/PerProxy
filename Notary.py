@@ -11,6 +11,18 @@ class NotaryException(Exception):
     """Exception related to a Notary"""
     pass
 
+class NotaryResponseException(Exception):
+    """Exception related to NotaryResponse"""
+    pass
+
+class NotaryUnknownServiceException(NotaryResponseException):
+    """Notary knows nothing about service"""
+    pass
+
+class NotaryResponseBadSignature(NotaryResponseException):
+    """Verification of notary signature failed"""
+    pass
+
 class Notaries(list):
     """Class for representing the set of trusted Notaries"""
 
@@ -58,10 +70,14 @@ class Notaries(list):
                 response.verify_signature()
                 self._debug("Response signature verified")
                 responses.append(response)
+            except NotaryUnknownServiceException as e:
+                self._debug("{} knows nothing about {}:{},{}".format(notary,
+                                                                     service_hostname,
+                                                                     port,
+                                                                     type))
             except Exception as e:
                 self._debug("No response from {}: {}".format(notary, e))
                 responses.append(None)
-                raise
         return responses
 
     def __str__(self):
@@ -70,14 +86,14 @@ class Notaries(list):
     def _debug(self, msg):
         print msg
 
+class NotaryServiceType:
+    """Constants for service types"""
+    # Determined experimentally. I don't know where these are documented.
+    HTTPS = 2
+    SSL = 2
+
 class Notary:
     """Class for representing Perspective Notary"""
-
-    # Perspective type values. Determined experimentally.
-    TYPE_VALUES = {
-        "https" : 2,
-        "ssl" : 2,
-        }
 
     def __init__(self, hostname, port, public_key):
         self.hostname = hostname
@@ -91,10 +107,12 @@ class Notary:
         """Query notary regarding given service, returning NotaryResponse
 
         type may be with numeric value or 'https'"""
-        if self.TYPE_VALUES.has_key(type):
-            type = self.TYPE_VALUES[type]
         url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service_hostname, port, type)
         stream = urllib.urlopen(url)
+        if stream.getcode() == 404:
+            raise NotaryUnknownServiceException()
+        elif stream.getcode() != 200:
+            raise NotaryException("Got bad http response code ({}) from {} for {}:{}".format(stream.getcode(), self, self.hostname, self.port))
         response = "".join(stream.readlines())
         stream.close()
         return NotaryResponse(response, self, service_hostname, port, type, url)
@@ -150,10 +168,6 @@ class Notary:
         pub_key = M2Crypto.EVP.PKey()
         pub_key.assign_rsa(M2Crypto.RSA.load_pub_key_bio(bio))
         return pub_key
-
-class NotaryResponseException(Exception):
-    """Exception related to NotaryResponse"""
-    pass
 
 class NotaryResponse:
     """Response from a Notary"""
@@ -212,7 +226,7 @@ class NotaryResponse:
         notary_pub_key.verify_update(data)
         result = notary_pub_key.verify_final(self.sig)
         if result == 0:
-            raise NotaryResponseException("Signature verification failed")
+            raise NotaryResponseBadSignature("Signature verification failed")
         elif result != 1:
             raise NotaryResponseException("Error verifying signature")
         
