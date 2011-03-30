@@ -37,7 +37,11 @@ def main(argv=None):
                                  dest="output_level",
                                  help="run quietly")
     parser.add_argument("--version", action="version", version="%(prog)s 1.0")
-    parser.add_argument("-n", "--notaries",
+    parser.add_argument("-n", "--num_notaries",
+                        type=int, default=0,
+                        help="specify number of notaries to query (0=All)",
+                        metavar="num")
+    parser.add_argument("-N", "--notaries-file",
                         type=str, default="./http_notary_list.txt",
                         help="specify notaries file", metavar="filename")
     parser.add_argument("-p", "--port", dest="service_port",
@@ -53,11 +57,13 @@ def main(argv=None):
 
     output_handler.setLevel(args.output_level)
 
-    notaries = Notaries.from_file(args.notaries)
-    output.debug("Read configuration for {} notaries from configuration {}".format(len(notaries), args.notaries))
+    notaries = Notaries.from_file(args.notaries_file)
+    output.debug("Read configuration for {} notaries from configuration {}".format(len(notaries), args.notaries_file))
+    output.debug("Requesting information about {}:{},{} from {} notaries".format(args.service_hostname[0], args.service_port, args.service_type, args.num_notaries))
     responses = notaries.query(args.service_hostname[0],
                                args.service_port,
-                               args.service_type)
+                               args.service_type,
+                               num=args.num_notaries)
     valid_responses = [r for r in responses if r is not None]
     output.info("Got {} valid responses from {} notaries".format(len(valid_responses),
                                                                  len(responses)))

@@ -2,6 +2,7 @@
 
 import base64
 import M2Crypto
+import random
 import re
 import struct
 import urllib
@@ -55,12 +56,21 @@ class Notaries(list):
                 notaries.append(notary)
         return notaries
 
-    def query(self, service_hostname, port, type):
+    def query(self, service_hostname, port, type, num=0):
         """Query all Notaries and return array of Responses.
 
-        For any Notary not responding, a None will be in the array."""
+        For any Notary not responding, a None will be in the array.
+
+        num specifies the number of Notaries to query. If 0, all notaries
+        are queried."""
+        if num == 0:
+            to_query = self
+        else:
+            if num > len(self):
+                raise ValueError("Too many notaries requested ({} > {})".format(num, len(self)))
+            to_query = random.sample(self, num)
         responses = []
-        for notary in self:
+        for notary in to_query:
             self._debug("Querying {}...".format(notary))
             try:
                 response = notary.query(service_hostname,
