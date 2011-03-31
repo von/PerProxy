@@ -203,7 +203,7 @@ class NotaryResponse:
         # Convert signature from base64 to raw form
         self.sig = base64.standard_b64decode(doc_element.getAttribute("sig"))
         keys = doc_element.getElementsByTagName("key")
-        self.keys = [NotaryResponseKey(key) for key in keys]
+        self.keys = [NotaryResponseKey.from_dom(key) for key in keys]
 
     def verify_signature(self):
         """Verify signature on response. Raise NotaryResponseException on failure.
@@ -252,18 +252,36 @@ class NotaryResponse:
             s += str(key)
         return s
         
-class NotaryResponseKey:
-    """Key from a Notary response"""
+class ServiceKey:
+    """Representation of a service's key"""
+    def __init__(self, type, fingerprint):
+        """Create a instance of a service key with given type and fingerprint.
 
-    def __init__(self, dom):
-        """Create NotaryResponseKey from dom"""
+        Type is a string as returned in a Notary response.
+        Fingerprint is a binary blob."""
+        self.type = type
+        self.fingerprint = fingerprint
+        
+    def __str__(self):
+        fp = ":".join(["{:02x}".format(n) for n in self.fingerprint])
+        s = "Fingerprint: {} type: {}\n".format(fp, self.type)
+        return s
+     
+class NotaryResponseKey(ServiceKey):
+    """Representation of a Key in a Notary Response"""
+
+    @classmethod
+    def from_dom(cls, dom):
+        """Create NotaryResponseKey from dom instance"""
         if dom.tagName != "key":
             raise NotaryResponseException("Unrecognized key element: {}".format(dom.tagName))
-        self.type = dom.getAttribute("type")
+        type = dom.getAttribute("type")
         # Convert fingerprint to binary
-        self.fingerprint = bytearray([int(n,16) for n in dom.getAttribute("fp").split(":")])
-        self.timespans = [NotaryResponseTimeSpan(e)
-                          for e in dom.getElementsByTagName("timestamp")]
+        fingerprint = bytearray([int(n,16) for n in dom.getAttribute("fp").split(":")])
+        key = cls(type, fingerprint)
+        key.timespans = [NotaryResponseTimeSpan(e)
+                         for e in dom.getElementsByTagName("timestamp")]
+        return key
 
     def bytes(self):
         """Return as bytes for signature verification"""
@@ -277,8 +295,7 @@ class NotaryResponseKey:
         return data
 
     def __str__(self):
-        fp = ":".join(["{:02x}".format(n) for n in self.fingerprint])
-        s = "Fingerprint: {} type: {}\n".format(fp, self.type)
+        s = ServiceKey.__str__(self)
         for t in self.timespans:
             s+= "\tStart: {} End: {}\n".format(t.start, t.end)
         return s
