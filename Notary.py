@@ -102,6 +102,15 @@ class NotaryServiceType:
     HTTPS = 2
     SSL = 2
 
+    STRINGS = {
+        "ssl" : SSL
+        }
+    
+    @classmethod
+    def from_string(cls, str):
+        """Return integer value from string"""
+        return cls.STRINGS[str]
+
 class Notary:
     """Class for representing Perspective Notary"""
 
@@ -261,7 +270,18 @@ class ServiceKey:
         Fingerprint is a binary blob."""
         self.type = type
         self.fingerprint = fingerprint
-        
+
+    @classmethod
+    def from_string(cls, type, str):
+        """Create a ServiceKey instance from a string such as:
+        93:cc:ed:bb:b9:84:42:fc:da:13:49:6a:89:95:50:28"""
+        fingerprint = bytearray([int(n,16) for n in str.split(":")])
+        return cls(type, fingerprint)
+
+    def __eq__(self, other):
+        return ((self.type == other.type) and
+                (self.fingerprint == other.fingerprint))
+
     def __str__(self):
         fp = ":".join(["{:02x}".format(n) for n in self.fingerprint])
         s = "Fingerprint: {} type: {}\n".format(fp, self.type)
@@ -275,10 +295,8 @@ class NotaryResponseKey(ServiceKey):
         """Create NotaryResponseKey from dom instance"""
         if dom.tagName != "key":
             raise NotaryResponseException("Unrecognized key element: {}".format(dom.tagName))
-        type = dom.getAttribute("type")
-        # Convert fingerprint to binary
-        fingerprint = bytearray([int(n,16) for n in dom.getAttribute("fp").split(":")])
-        key = cls(type, fingerprint)
+        type = NotaryServiceType.from_string(dom.getAttribute("type"))
+        key = cls.from_string(type, dom.getAttribute("fp"))
         key.timespans = [NotaryResponseTimeSpan(e)
                          for e in dom.getElementsByTagName("timestamp")]
         return key
