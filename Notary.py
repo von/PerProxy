@@ -85,7 +85,7 @@ class Notaries(list):
                                                                      service_hostname,
                                                                      port,
                                                                      type))
-            except Exception as e:
+            except NotaryException as e:
                 self._debug("No response from {}: {}".format(notary, e))
                 responses.append(None)
         return responses
