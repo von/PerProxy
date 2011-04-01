@@ -312,6 +312,14 @@ class NotaryResponseKey(ServiceKey):
         data.extend(b"".join([t.bytes() for t in self.timespans]))
         return data
 
+    def change_times(self):
+        """Return an list of all timespan end times"""
+        return [t.end for t in self.timespans] + [t.start for t in self.timespans]
+
+    def last_timestamp(self):
+        """Return the last time we saw this key"""
+        return max([ts.end for ts in self.timespans])
+
     def __str__(self):
         s = ServiceKey.__str__(self)
         for t in self.timespans:
