@@ -51,6 +51,10 @@ def main(argv=None):
     parser.add_argument("-t", "--type", dest="service_type",
                         type=int, default=NotaryServiceType.SSL,
                         help="specify service type", metavar="type")
+    parser.add_argument("-x", "--xml",
+                        dest="output_xml", action="store_const", const=True,
+                        default=False,
+                        help="output raw XML")
     parser.add_argument('service_hostname', metavar='hostname',
                         type=str, nargs=1,
                         help='host about which to query')
@@ -71,7 +75,10 @@ def main(argv=None):
     output.info("Got {} valid responses from {} notaries".format(len(responses),
                                                                  len(notaries)))
     for response in responses:
-        output.info(response)
+        if args.output_xml:
+            output.info(response.xml)
+        else:
+            output.info(response)
     if args.service_key is not None:
         output.debug("Checking provided key against responses...")
         key = ServiceKey.from_string(args.service_type, args.service_key)
