@@ -96,6 +96,21 @@ class Notaries(list):
                 self._debug("No response from {}: {}".format(notary, e))
         return responses
 
+    def find_notary(self, hostname, port=None):
+        """Find notary inlist.
+
+        hostname must match. If port is not None, it must match too.
+
+        Returns None if notary is not found."""
+        for notary in self:
+            if notary.hostname != hostname:
+                continue
+            if (port is not None) and (notary.port != port):
+                continue
+            return notary
+        # Failure
+        return None
+
     def __str__(self):
         return "[" + ",".join([str(n) for n in self]) + "]"
 
