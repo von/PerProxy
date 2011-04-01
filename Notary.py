@@ -1,6 +1,7 @@
 """Class for representing Perspective Notaries"""
 
 import base64
+import logging
 import M2Crypto
 import random
 import re
@@ -8,6 +9,8 @@ import struct
 import time
 import urllib
 import xml.dom.minidom
+
+logger = logging.getLogger()
 
 class NotaryException(Exception):
     """Exception related to a Notary"""
@@ -70,7 +73,7 @@ class Notaries(list):
             if num > len(self):
                 raise ValueError("Too many notaries requested ({} > {})".format(num, len(self)))
             to_query = random.sample(self, num)
-        responses = []
+        responses = NotaryResponses()
         for notary in to_query:
             self._debug("Querying {}...".format(notary))
             try:
@@ -187,6 +190,66 @@ class Notary:
         pub_key = M2Crypto.EVP.PKey()
         pub_key.assign_rsa(M2Crypto.RSA.load_pub_key_bio(bio))
         return pub_key
+
+class NotaryResponses(list):
+    """Wrapper around a list of NotaryResponse instances"""
+
+    def quorum_duration(self, key, quorum, stale_limit):
+        """Return the quorum duration of the given key in seconds.
+
+        Quorum duration is the length of time at least quorum Notaries
+        believe the key was valid."""
+        if quorum > len(self):
+            return(0)
+
+        # Find the response with the last seen key with the oldest
+        # time that is not older than stale_limit.
+        now = int(time.time())
+        stale_time_cutoff = now - stale_limit
+        last_seen_key_times = [r.last_key_seen().last_timestamp() for r in self]
+        non_stale_response_times = filter(lambda t: t > stale_time_cutoff,
+                                          last_seen_key_times)
+        if len(non_stale_response_times) == 0:
+            logger.debug("No non-stale responses")
+            return(0)
+        oldest_response_time = min(non_stale_response_times)
+        logger.debug("Oldest response time is {}".format(time.ctime(oldest_response_time)))
+
+        # Get list of all times we had a key change
+        key_change_times = reduce(lambda a,b: a + b,
+                                  [r.key_change_times()
+                                   for r in self])
+        # We ignore all key_change_times after the oldest_response_time
+        key_change_times = filter(lambda t: t <= oldest_response_time,
+                                  key_change_times)
+
+        # Make list of change times go from newest to oldest
+        key_change_times.sort()
+        key_change_times.reverse()
+
+        first_valid_time = None
+        for change_time in key_change_times:
+            logger.debug("Checking time {}".format(time.ctime(change_time)))
+            agreement_count = self.key_agreement_count(key, change_time)
+            if agreement_count >= quorum:
+                first_valid_time = change_time
+                logger.debug("Quorum made with {} notaries".format(agreement_count))
+            else:
+                logger.debug("Not enough notaries to make quorum ({})".format(agreement_count))
+                break
+        if first_valid_time is None:
+            return 0  # No quorum_duration
+        return now - first_valid_time
+
+    def key_agreement_count(self, key, time):
+        """How many notaries agree given key was valid at given time?"""
+        count = 0
+        for response in self:
+            if response is not None:
+                seen_key = response.key_at_time(time)
+                if (seen_key is not None) and (key == seen_key):
+                    count += 1
+        return count
 
 class NotaryResponse:
     """Response from a Notary"""
