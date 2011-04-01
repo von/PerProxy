@@ -61,7 +61,7 @@ class Notaries(list):
         return notaries
 
     def query(self, service_hostname, port, type, num=0):
-        """Query all Notaries and return array of Responses.
+        """Query Notaries and return NotaryResponses instance
 
         For any Notary not responding, a None will be in the array.
 
