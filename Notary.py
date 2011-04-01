@@ -5,6 +5,7 @@ import M2Crypto
 import random
 import re
 import struct
+import time
 import urllib
 import xml.dom.minidom
 
@@ -314,7 +315,7 @@ class NotaryResponseKey(ServiceKey):
     def __str__(self):
         s = ServiceKey.__str__(self)
         for t in self.timespans:
-            s+= "\tStart: {} End: {}\n".format(t.start, t.end)
+            s += str(t) + "\n"
         return s
 
 class NotaryResponseTimeSpan:
@@ -340,3 +341,6 @@ class NotaryResponseTimeSpan:
                                 (self.end >> 8) & 255,
                                 self.end & 255)                    
         return b"".join([start_bytes, end_bytes])
+
+    def __str__(self):
+        return "{} - {}".format(time.ctime(self.start), time.ctime(self.end))
