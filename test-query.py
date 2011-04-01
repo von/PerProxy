@@ -64,10 +64,9 @@ def main(argv=None):
                                args.service_port,
                                args.service_type,
                                num=args.num_notaries)
-    valid_responses = [r for r in responses if r is not None]
-    output.info("Got {} valid responses from {} notaries".format(len(valid_responses),
-                                                                 len(responses)))
-    for response in valid_responses:
+    output.info("Got {} valid responses from {} notaries".format(len(responses),
+                                                                 len(notaries)))
+    for response in responses:
         output.info(response)
     return(0)
 

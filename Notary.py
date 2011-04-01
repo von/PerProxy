@@ -87,7 +87,6 @@ class Notaries(list):
                                                                      type))
             except NotaryException as e:
                 self._debug("No response from {}: {}".format(notary, e))
-                responses.append(None)
         return responses
 
     def __str__(self):
