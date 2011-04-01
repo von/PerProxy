@@ -248,7 +248,26 @@ class NotaryResponse:
             raise NotaryResponseBadSignature("Signature verification failed")
         elif result != 1:
             raise NotaryResponseException("Error verifying signature")
-        
+
+    def last_key_seen(self):
+        """Return most recently seen key"""
+        return max(self.keys, key=lambda k: k.last_timestamp())
+
+    def key_at_time(self, time):
+        """Get key seen at time (expressed in seconds)
+
+        Returns None if no key known at given time."""
+        for key in self.keys:
+            for span in key.timespans:
+                if (span.start <= time) and (span.end >= time):
+                    return key
+        return None
+
+    def key_change_times(self):
+        """Return list of all times the key changed"""
+        return reduce(lambda a,b: a + b,
+                      [key.change_times() for key in self.keys])
+
     def __str__(self):
         s = "Response from {} regarding {}:{} type {}\n".format(self.notary,
                                                                 self.hostname,
