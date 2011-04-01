@@ -5,7 +5,8 @@ import argparse
 import logging
 import sys
 
-from Notary import Notaries, NotaryServiceType
+from Notary import Notaries, NotaryServiceType, ServiceKey
+from Policy import Policy, PolicyException
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -53,6 +54,9 @@ def main(argv=None):
     parser.add_argument('service_hostname', metavar='hostname',
                         type=str, nargs=1,
                         help='host about which to query')
+    parser.add_argument('service_key', metavar='fingerprint',
+                        type=str, nargs='?', default=None,
+                        help='test key against responses')
     args = parser.parse_args()
 
     output_handler.setLevel(args.output_level)
@@ -68,6 +72,16 @@ def main(argv=None):
                                                                  len(notaries)))
     for response in responses:
         output.info(response)
+    if args.service_key is not None:
+        output.debug("Checking provided key against responses...")
+        key = ServiceKey.from_string(args.service_type, args.service_key)
+        policy = Policy(quorum=len(responses))
+        try:
+            policy.check(key, responses)
+            output.info("Policy check succeeded")
+        except PolicyException as e:
+            output.error("Policy check on key failed: {}".format(e))
+            return(1)
     return(0)
 
 if __name__ == "__main__":
