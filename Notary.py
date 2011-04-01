@@ -81,7 +81,10 @@ class Notaries(list):
                                         port,
                                         type)
                 self._debug("Got response from {}".format(notary))
-                response.verify_signature()
+                notary.verify_response(response,
+                                       service_hostname,
+                                       port,
+                                       type)
                 self._debug("Response signature verified")
                 responses.append(response)
             except NotaryUnknownServiceException as e:
@@ -137,7 +140,7 @@ class Notary:
             raise NotaryException("Got bad http response code ({}) from {} for {}:{}".format(stream.getcode(), self, self.hostname, self.port))
         response = "".join(stream.readlines())
         stream.close()
-        return NotaryResponse(response, self, service_hostname, port, type, url)
+        return NotaryResponse(response)
 
     @classmethod
     def from_stream(cls, stream):
@@ -190,6 +193,33 @@ class Notary:
         pub_key = M2Crypto.EVP.PKey()
         pub_key.assign_rsa(M2Crypto.RSA.load_pub_key_bio(bio))
         return pub_key
+
+    def verify_response(self, response, hostname, port, type):
+        """Verify signature of response regarding given service.
+
+        Raise NotaryResponseBadSignature on bad signature.
+
+        Signature is over binary block composed of:
+            Service id as a string ('hostname:port,type')
+            One nul byte (Not sure what this is for)
+            Response binary blob -- see NotaryResponse.bytes()
+            """
+        data = bytearray(b"{}:{},{}".format(hostname, port, type))
+        # One byte of zero  - unknown what this represents
+        data.append(struct.pack("B", 0))
+
+        data.extend(response.bytes())
+        
+        notary_pub_key = self.public_key
+        # Todo: Assuming MD5 here, should double check response.type
+        notary_pub_key.reset_context(md="md5")
+        notary_pub_key.verify_init()
+        notary_pub_key.verify_update(data)
+        result = notary_pub_key.verify_final(response.sig)
+        if result == 0:
+            raise NotaryResponseBadSignature("Signature verification failed")
+        elif result != 1:
+            raise NotaryResponseException("Error verifying signature")
 
 class NotaryResponses(list):
     """Wrapper around a list of NotaryResponse instances"""
@@ -254,14 +284,9 @@ class NotaryResponses(list):
 class NotaryResponse:
     """Response from a Notary"""
         
-    def __init__(self, xml, notary, hostname, port, type, url):
+    def __init__(self, xml):
         """Create a NotaryResponse instance"""
         self.xml = xml
-        self.notary = notary
-        self.hostname = hostname
-        self.port = port
-        self.type = type
-        self.url = url
         self._parse_xml()
 
     def _parse_xml(self):
@@ -277,40 +302,16 @@ class NotaryResponse:
         keys = doc_element.getElementsByTagName("key")
         self.keys = [NotaryResponseKey.from_dom(key) for key in keys]
 
-    def verify_signature(self):
-        """Verify signature on response. Raise NotaryResponseException on failure.
+    def bytes(self):
+        """Return as bytes for signature verification
 
-        Signature is done over the following binary block:
-          Service id as a string
-          0  -- I don't know what this is
-          For each key (in reverse order):
-            # of timespans as 2-byte tuple
-            0, 16, 3  -- I don't know what these are
-            Fingerprint
-            For each timespan:
-              Start as 4 byte tuple
-              End as 4 byte tuple
-        """
-        
-        data = bytearray(b"{}:{},{}".format(self.hostname, self.port, self.type))
-        # One byte of zero  - unknown what this represents
-        data.append(struct.pack("B", 0))
-
+        Bytes is concatenated key data in reverse order"""
+        data = bytearray()
         key_data = [key.bytes() for key in self.keys]
         key_data.reverse()
         for kd in key_data:
             data.extend(kd)
-
-        notary_pub_key = self.notary.public_key
-        # Todo: Assuming MD5 here, should double check response.type
-        notary_pub_key.reset_context(md="md5")
-        notary_pub_key.verify_init()
-        notary_pub_key.verify_update(data)
-        result = notary_pub_key.verify_final(self.sig)
-        if result == 0:
-            raise NotaryResponseBadSignature("Signature verification failed")
-        elif result != 1:
-            raise NotaryResponseException("Error verifying signature")
+        return data
 
     def last_key_seen(self):
         """Return most recently seen key"""
@@ -332,12 +333,8 @@ class NotaryResponse:
                       [key.change_times() for key in self.keys])
 
     def __str__(self):
-        s = "Response from {} regarding {}:{} type {}\n".format(self.notary,
-                                                                self.hostname,
-                                                                self.port,
-                                                                self.type)
-        s += "\tVersion: {} Signature type: {}\n".format(self.version,
-                                                         self.sig_type)
+        s = "Notary Response Version: {} Signature type: {}\n".format(self.version,
+                                                                      self.sig_type)
         s += "\tSig: {}\n".format(base64.standard_b64encode(self.sig))
         for key in self.keys:
             s += str(key)
@@ -384,7 +381,14 @@ class NotaryResponseKey(ServiceKey):
         return key
 
     def bytes(self):
-        """Return as bytes for signature verification"""
+        """Return as bytes for signature verification
+
+        Data is for each key:
+            Number of timespans as 2-byte tuple
+            0, 16, 3  -- I don't know what these are
+            Fingerprint
+            Data for each timespan
+        """
         data = bytearray(struct.pack("BB",
                                      (len(self.timespans) >> 8) & 255,
                                      len(self.timespans) & 255))
@@ -419,7 +423,9 @@ class NotaryResponseTimeSpan:
         self.end = int(dom.getAttribute("end"))
 
     def bytes(self):
-        """Return as bytes for signature verification"""
+        """Return as bytes for signature verification
+
+        Data is start as 4 byte value concatenated with end as 4 byte value"""
         start_bytes = struct.pack("BBBB",
                                   (self.start >> 24) & 255,
                                   (self.start >> 16) & 255,
