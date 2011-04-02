@@ -3,6 +3,7 @@
 import binascii
 import select
 import socket
+import thread
 
 import PythonProxy
 import TLS
@@ -77,5 +78,21 @@ class PerspectivesConnectionHandler(PythonProxy.ConnectionHandler):
     def _debug(self, msg):
         print msg
 
+
+def start_server(host='localhost', port=8080, IPv6=False, timeout=60,
+                  handler=PerspectivesConnectionHandler):
+    if IPv6==True:
+        soc_type=socket.AF_INET6
+    else:
+        soc_type=socket.AF_INET
+    soc = socket.socket(soc_type)
+    # Allow for quick reuse of port
+    soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    soc.bind((host, port))
+    print "Serving on %s:%d."%(host, port)#debug
+    soc.listen(0)
+    while 1:
+        thread.start_new_thread(handler, soc.accept()+(timeout,))
+
 if __name__ == '__main__':
-    PythonProxy.start_server(handler=PerspectivesConnectionHandler)
+    start_server()
