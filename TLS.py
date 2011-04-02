@@ -24,7 +24,16 @@ class TLSException(Exception):
     """Exception parsing TLS message"""
     pass
 
-
+def decode_length(bytes):
+    """Return length encoded in given bytes"""
+    if isinstance(bytes, memoryview):
+        bytes = bytes.tolist()
+    length = 0
+    for index in range(len(bytes)):
+        length <<= 8
+        length += bytes[index]
+    return length
+    
 class Record:
     """Wrapper around a buffer representing a TLS/SSL record.
 
@@ -35,7 +44,7 @@ class Record:
     def __init__(self, buffer):
         """Create a Record object around given buffer."""
         if len(buffer) < self.HEADER_LENGTH:
-            raise TLSException("Buffer too short ({} byes)".format(len(buffer)))
+            raise TLSException("Buffer too short ({} bytes)".format(len(buffer)))
         self.view = memoryview(buffer)
 
     def content_type(self):
@@ -48,8 +57,7 @@ class Record:
 
     def length(self):
         """Return protocol message length"""
-        high_bits,low_bits = struct.unpack("!BB", self.view[3:5].tobytes())
-        return (high_bits<<8) | low_bits
+        return decode_length(self.view[3:5])
 
     def total_length(self):
         """Returns total length of record"""
@@ -64,10 +72,17 @@ class Record:
             raise TLSException("Record is not a Handshake record ({})".format(type))
         index = self.HEADER_LENGTH
         protocol_message_length = self.length()
-        while index < self.HEADER_LENGTH + protocol_message_length:
-            msg = HandshakeMessage(self.view[index:])
+        view = self.view[index:index+protocol_message_length]
+        while len(view) > 0:
+            # Length is 2nd-4th bytes
+            msg_len = decode_length(view[1:HandshakeMessage.HEADER_LENGTH])
+            msg_start = 0
+            msg_end = HandshakeMessage.HEADER_LENGTH + msg_len
+            if len(view) < msg_end:
+                raise RLSException("Buffer ({}) not long enough to hold handshake message ({})".format(len(view), msg_len))
+            msg = HandshakeMessage(view[msg_start:msg_end])
             yield msg
-            index += msg.total_length()
+            view = view[msg_end:]
 
     @classmethod
     def read_from_sock(cls, sock):
@@ -97,29 +112,26 @@ class Record:
         sock.send(self.view)
 
 class HandshakeMessage:
-    """Wrapper around a buffer representing a TLS/SSL Handshake message.
+    """A TLS/SSL Handshake message.
 
-    Meant for parsing messages not creatig them. Does not modify buffer."""
+    Meant for parsing messages not creating them. Does not modify buffer."""
     
     HEADER_LENGTH = 4  # Type plus 3 bytes of length
 
-    def __init__(self, buffer):
-        """Create a HandshakeMessage object around given buffer (or view).
-
-        Buffer can be longer than handshake message (e.g., it can run to
-        end of protocol message) and that will be handled."""
-        # If buffer is a view, following is redundant, but doesn't seem
+    def __init__(self, data):
+        """Create a HandshakeMessage object around given data"""
+        if len(data) < self.HEADER_LENGTH:
+            raise TLSException("Buffer too short ({} bytes)".format(len(data)))
+        # If data is a view, following is redundant, but doesn't seem
         # to cause harm.
-        self.view = memoryview(buffer)
-        # Trim view to actual length of message
+        self.data = memoryview(data)
         length = self.total_length()
-        if length > len(self.view):
-            raise TLSException("buffer ({}) shorter than handshake message ({})".format(len(buffer), length))
-        self.view = self.view[:length]
+        if len(data) < length:
+            raise TLSException("Buffer too short ({}) to hold whole handshake message ({})".format(len(data), length))
 
     def type(self):
         """Return type field of message"""
-        return struct.unpack("!B", self.view[0])[0]
+        return struct.unpack("!B", self.data[0])[0]
 
     def total_length(self):
         """Return length of message including header"""
@@ -127,54 +139,56 @@ class HandshakeMessage:
 
     def length(self):
         """Return length of message (excluding header)"""
-        high_bits,mid_bits,low_bits = \
-            struct.unpack("!BBB", self.view[1:4].tobytes())
-        return (high_bits<<16) | (mid_bits<<8) | low_bits
+        return decode_length(self.data[1:4])
+
+
+class CertificateMessage(HandshakeMessage):
+
+    CERTS_LENGTH_BYTES = 3  # 3 bytes of length of all certificates
+    CERT_LENGTH_BYTES = 3  # 3 bytes at start of each certificate
+
+    def __init__(self, data):
+        HandshakeMessage.__init__(self, data)
+        type = self.type()
+        if type != Constants.CERTIFICATE:
+            raise TLSException("Message is not a CERTIFICATE message ({})".format(type))
+        length_of_certs = self.length_of_certs()
+        if len(data) < length_of_certs:
+            raise TLSException("Data ({}) is too short (<{}) to hold all certificates".format(len(data), length_of_certs))
+        
+    def length_of_certs(self):
+        """Return length of all certificates"""
+        # Bytes 5-7
+        return decode_length(self.data[self.HEADER_LENGTH:self.HEADER_LENGTH+self.CERTS_LENGTH_BYTES])
 
     def certificates(self):
-        """Returns a generator of certificates in handshake message.
-
-        If not a Cerificate message, a TLSException is thrown."""
-        # Skip over message header and three bytes providing length of all
-        # certs
-        view = self.view[self.HEADER_LENGTH+3:]
+        """Returns a generator of certificates in message."""
+        # Skip over header + length of all certificates bytes
+        view = self.data[self.HEADER_LENGTH+self.CERTS_LENGTH_BYTES:]
         while len(view) > 0:
-            cert = Certificate(view)
+            cert_len = decode_length(view[:self.CERT_LENGTH_BYTES])
+            # Skip over length bytes
+            cert_start = self.CERT_LENGTH_BYTES
+            cert_end = cert_start + cert_len
+            if len(view) < cert_end:
+                raise TLSException("data ({}) not long enough to hold certificate ({})".format(len(view), cert_len))
+            cert = Certificate(view[cert_start:cert_end])
             yield cert
-            view = view[cert.total_length():]
+            view = view[cert_end:]
 
 class Certificate:
-    """Wrapper around a buffer repsenting a certificate in a Certificate
-    Handshake message.
-
-    Meant for parsing certificates not creatig them. Does not modify buffer."""
-
-    HEADER_LENGTH = 3  # 3 length bytes
+    """TLS certificate"""
 
     def __init__(self, buffer):
-        """Create a Certificate object around given buffer (or view).
+        """Create a Certificate object around given buffer"""
+        self.data = buffer
 
-        Buffer can be longer than certificate message (e.g., it can run to
-        end of protocol message) and that will be handled."""
-        self.view = memoryview(buffer)
-        # Trim view to actual length of message
-        length = self.total_length()
-        if length > len(self.view):
-            raise TLSException("buffer ({}) shorter than certificate ({})".format(len(buffer), length))
-        self.view = self.view[:length]
-
-    def total_length(self):
-        """Return length of message including header"""
-        return self.length() + self.HEADER_LENGTH
-
-    def length(self):
-        """Return length of message (excluding header)"""
-        high_bits,mid_bits,low_bits = \
-            struct.unpack("!BBB", self.view[:3].tobytes())
-        return (high_bits<<16) | (mid_bits<<8) | low_bits
+    def __len__(self):
+        """Return length of certificate"""
+        return len(self.data)
 
     def md5_hash(self):
         """Return MD5 hash of certificate"""
         hash = hashlib.md5()
-        hash.update(self.view[self.HEADER_LENGTH:])
+        hash.update(self.data)
         return hash.digest()

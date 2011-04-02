@@ -7,8 +7,6 @@ import socket
 import PythonProxy
 import TLS
 
-SSL_RECORD_LENGTH = 5
-
 class PerspectivesException(Exception):
     pass
 
@@ -44,6 +42,7 @@ class PerspectivesConnectionHandler(PythonProxy.ConnectionHandler):
         while not server_done:
             record = TLS.Record.read_from_sock(self.target)
             type = record.content_type()
+            self._debug("Read record of type {}".format(type))
             if type != TLS.Constants.HANDSHAKE:
                 self._debug("Found non-Handshake message ({})".format(type))
                 record.write_to_sock(self.client)
@@ -59,8 +58,9 @@ class PerspectivesConnectionHandler(PythonProxy.ConnectionHandler):
                 self._debug("Handshake message: type = {} length = {}".format(type, length))
                 if type == TLS.Constants.CERTIFICATE:
                     self._debug("Found Certificate message")
-                    for cert in msg.certificates():
-                        self._debug("Found certificate (len={})".format(cert.length()))
+                    cert_msg = TLS.CertificateMessage(msg.data)
+                    for cert in cert_msg.certificates():
+                        self._debug("Found certificate (len={})".format(len(cert)))
                         digest = cert.md5_hash()
                         self._debug("Hash: {}".format(":".join([binascii.b2a_hex(b) for b in digest])))
                     break
