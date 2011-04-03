@@ -10,6 +10,8 @@ import time
 import urllib
 import xml.dom.minidom
 
+from TLS import Fingerprint
+
 logger = logging.getLogger()
 
 class NotaryException(Exception):
@@ -239,11 +241,11 @@ class Notary:
 class NotaryResponses(list):
     """Wrapper around a list of NotaryResponse instances"""
 
-    def quorum_duration(self, key, quorum, stale_limit):
-        """Return the quorum duration of the given key in seconds.
+    def quorum_duration(self, cert_fingerprint, quorum, stale_limit):
+        """Return the quorum duration of the given certificate in seconds.
 
         Quorum duration is the length of time at least quorum Notaries
-        believe the key was valid."""
+        believe the certificate was valid."""
         if quorum > len(self):
             return(0)
 
@@ -275,7 +277,8 @@ class NotaryResponses(list):
         first_valid_time = None
         for change_time in key_change_times:
             logger.debug("Checking time {}".format(time.ctime(change_time)))
-            agreement_count = self.key_agreement_count(key, change_time)
+            agreement_count = self.key_agreement_count(cert_fingerprint,
+                                                       change_time)
             if agreement_count >= quorum:
                 first_valid_time = change_time
                 logger.debug("Quorum made with {} notaries".format(agreement_count))
@@ -286,13 +289,14 @@ class NotaryResponses(list):
             return 0  # No quorum_duration
         return now - first_valid_time
 
-    def key_agreement_count(self, key, time):
-        """How many notaries agree given key was valid at given time?"""
+    def key_agreement_count(self, cert_fingerprint, time):
+        """How many notaries agree given certificate was valid at given time?"""
         count = 0
         for response in self:
             if response is not None:
                 seen_key = response.key_at_time(time)
-                if (seen_key is not None) and (key == seen_key):
+                if (seen_key is not None) and \
+                        (seen_key.fingerprint == cert_fingerprint):
                     count += 1
         return count
 
@@ -361,7 +365,7 @@ class ServiceKey:
         """Create a instance of a service key with given type and fingerprint.
 
         Type is a string as returned in a Notary response.
-        Fingerprint is a binary blob."""
+        Fingerprint is a Fingerprint instance."""
         self.type = type
         self.fingerprint = fingerprint
 
@@ -369,7 +373,7 @@ class ServiceKey:
     def from_string(cls, type, str):
         """Create a ServiceKey instance from a string such as:
         93:cc:ed:bb:b9:84:42:fc:da:13:49:6a:89:95:50:28"""
-        fingerprint = bytearray([int(n,16) for n in str.split(":")])
+        fingerprint = Fingerprint.from_string(str)
         return cls(type, fingerprint)
 
     def __eq__(self, other):
@@ -377,8 +381,7 @@ class ServiceKey:
                 (self.fingerprint == other.fingerprint))
 
     def __str__(self):
-        fp = ":".join(["{:02x}".format(n) for n in self.fingerprint])
-        s = "Fingerprint: {} type: {}\n".format(fp, self.type)
+        s = "Fingerprint: {} type: {}\n".format(self.fingerprint, self.type)
         return s
      
 class NotaryResponseKey(ServiceKey):
@@ -409,7 +412,7 @@ class NotaryResponseKey(ServiceKey):
                                      len(self.timespans) & 255))
         # I don't know what these three values are
         data.extend(struct.pack("BBB", 0, 16, 3))
-        data.extend(self.fingerprint)
+        data.extend(self.fingerprint.data)
         data.extend(b"".join([t.bytes() for t in self.timespans]))
         return data
 
