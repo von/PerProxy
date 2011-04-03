@@ -42,5 +42,21 @@ class TestCertificate(unittest.TestCase):
         self.assertEqual(str(fingerprint),
                          "ef:e3:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")
 
+class TestFingerprint(unittest.TestCase):
+    """Tests for Fingerprint object"""
+
+    def test_equality(self):
+        """Test equality methods"""
+        from TLS import Fingerprint
+        fp1 = Fingerprint.from_string("ef:e3:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")
+        self.assertIsNotNone(fp1)
+        fp2 = Fingerprint.from_string("ef:e3:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")  # Same as fp1 
+        self.assertIsNotNone(fp2)
+        fp3 = Fingerprint.from_string("aa:bb:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")  # Different from fp1
+        self.assertIsNotNone(fp3)
+        self.assertEqual(fp1, f2)
+        self.assertNotEqual(fp1, fp3)
+        self.assertNotEqual(fp2, fp3)
+
 if __name__ == "__main__":
     unittest.main()

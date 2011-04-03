@@ -218,3 +218,6 @@ class Fingerprint:
 
     def __eq__(self, other):
         return self.data == other.data
+
+    def __ne__(self, other):
+        return self.data != other.data
