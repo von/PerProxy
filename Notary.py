@@ -10,6 +10,7 @@ import time
 import urllib
 import xml.dom.minidom
 
+from Service import ServiceType
 from TLS import Fingerprint
 
 logger = logging.getLogger()
@@ -62,7 +63,7 @@ class Notaries(list):
                 notaries.append(notary)
         return notaries
 
-    def query(self, service_hostname, port, type, num=0):
+    def query(self, service, num=0):
         """Query Notaries and return NotaryResponses instance
 
         For any Notary not responding, a None will be in the array.
@@ -77,23 +78,15 @@ class Notaries(list):
             to_query = random.sample(self, num)
         responses = NotaryResponses()
         for notary in to_query:
-            self._debug("Querying {}...".format(notary))
+            self._debug("Querying {} about {}...".format(notary, service))
             try:
-                response = notary.query(service_hostname,
-                                        port,
-                                        type)
+                response = notary.query(service)
                 self._debug("Got response from {}".format(notary))
-                notary.verify_response(response,
-                                       service_hostname,
-                                       port,
-                                       type)
+                notary.verify_response(response, service)
                 self._debug("Response signature verified")
                 responses.append(response)
             except NotaryUnknownServiceException as e:
-                self._debug("{} knows nothing about {}:{},{}".format(notary,
-                                                                     service_hostname,
-                                                                     port,
-                                                                     type))
+                self._debug("{} knows nothing about {}".format(notary, service))
             except NotaryException as e:
                 self._debug("No response from {}: {}".format(notary, e))
         return responses
@@ -119,20 +112,6 @@ class Notaries(list):
     def _debug(self, msg):
         print msg
 
-class NotaryServiceType:
-    """Constants for service types"""
-    # Determined experimentally. I don't know where these are documented.
-    HTTPS = 2
-    SSL = 2
-
-    STRINGS = {
-        "ssl" : SSL
-        }
-    
-    @classmethod
-    def from_string(cls, str):
-        """Return integer value from string"""
-        return cls.STRINGS[str]
 
 class Notary:
     """Class for representing Perspective Notary"""
@@ -145,16 +124,16 @@ class Notary:
     def __str__(self):
         return "Notary at {} port {}".format(self.hostname, self.port)
 
-    def query(self, service_hostname, port, type):
+    def query(self, service):
         """Query notary regarding given service, returning NotaryResponse
 
         type may be with numeric value or 'https'"""
-        url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service_hostname, port, type)
+        url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service.hostname, service.port, service.type)
         stream = urllib.urlopen(url)
         if stream.getcode() == 404:
             raise NotaryUnknownServiceException()
         elif stream.getcode() != 200:
-            raise NotaryException("Got bad http response code ({}) from {} for {}:{}".format(stream.getcode(), self, self.hostname, self.port))
+            raise NotaryException("Got bad http response code ({}) from {} for {}".format(stream.getcode(), self, service))
         response = "".join(stream.readlines())
         stream.close()
         return NotaryResponse(response)
@@ -211,7 +190,7 @@ class Notary:
         pub_key.assign_rsa(M2Crypto.RSA.load_pub_key_bio(bio))
         return pub_key
 
-    def verify_response(self, response, hostname, port, type):
+    def verify_response(self, response, service):
         """Verify signature of response regarding given service.
 
         Raise NotaryResponseBadSignature on bad signature.
@@ -221,7 +200,9 @@ class Notary:
             One nul byte (Not sure what this is for)
             Response binary blob -- see NotaryResponse.bytes()
             """
-        data = bytearray(b"{}:{},{}".format(hostname, port, type))
+        data = bytearray(b"{}:{},{}".format(service.hostname,
+                                            service.port,
+                                            service.type))
         # One byte of zero  - unknown what this represents
         data.append(struct.pack("B", 0))
 
@@ -392,7 +373,7 @@ class NotaryResponseKey(ServiceKey):
         """Create NotaryResponseKey from dom instance"""
         if dom.tagName != "key":
             raise NotaryResponseException("Unrecognized key element: {}".format(dom.tagName))
-        type = NotaryServiceType.from_string(dom.getAttribute("type"))
+        type = ServiceType.from_string(dom.getAttribute("type"))
         key = cls.from_string(type, dom.getAttribute("fp"))
         key.timespans = [NotaryResponseTimeSpan(e)
                          for e in dom.getElementsByTagName("timestamp")]

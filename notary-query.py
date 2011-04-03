@@ -5,8 +5,8 @@ import argparse
 import logging
 import sys
 
-from Notary import Notaries, NotaryServiceType
-from Policy import Policy, PolicyException
+from Perspectives import Checker, PerspectivesException
+from Service import Service, ServiceType
 from TLS import Fingerprint
 
 def main(argv=None):
@@ -50,7 +50,7 @@ def main(argv=None):
                         type=int, default=443,
                         help="specify service port", metavar="port")
     parser.add_argument("-t", "--type", dest="service_type",
-                        type=int, default=NotaryServiceType.SSL,
+                        type=int, default=ServiceType.SSL,
                         help="specify service type", metavar="type")
     parser.add_argument("-x", "--xml",
                         dest="output_xml", action="store_const", const=True,
@@ -66,30 +66,26 @@ def main(argv=None):
 
     output_handler.setLevel(args.output_level)
 
-    notaries = Notaries.from_file(args.notaries_file)
-    output.debug("Read configuration for {} notaries from configuration {}".format(len(notaries), args.notaries_file))
-    output.debug("Requesting information about {}:{},{} from {} notaries".format(args.service_hostname[0], args.service_port, args.service_type, args.num_notaries))
-    responses = notaries.query(args.service_hostname[0],
-                               args.service_port,
-                               args.service_type,
-                               num=args.num_notaries)
-    output.info("Got {} valid responses from {} notaries".format(len(responses),
-                                                                 len(notaries)))
-    for response in responses:
-        if args.output_xml:
-            output.info(response.xml)
-        else:
-            output.info(response)
+    Checker.init_class(notaries_file = args.notaries_file)
+    service = Service(args.service_hostname[0],
+                      args.service_port,
+                      args.service_type)
+    output.debug("Read configuration for {} notaries from configuration {}".format(len(Checker.notaries), args.notaries_file))
+    checker = Checker(service)
+    if checker.responses:
+        for response in checker.responses:
+            if args.output_xml:
+                output.info(response.xml)
+            else:
+                output.info(response)
+    else:
+        output.info("Checker did not obtain responses")
+
     if args.service_fingerprint is not None:
         output.debug("Checking provided fingerprint against responses...")
         fp = Fingerprint.from_string(args.service_fingerprint)
-        policy = Policy(quorum=len(responses))
-        try:
-            policy.check(fp, responses)
-            output.info("Policy check succeeded")
-        except PolicyException as e:
-            output.error("Policy check failed: {}".format(e))
-            return(1)
+        checker.check_seen_fingerprint(fp)
+        output.debug("Check successful.")
     return(0)
 
 if __name__ == "__main__":
