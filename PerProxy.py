@@ -61,9 +61,8 @@ class PerspectivesConnectionHandler(PythonProxy.ConnectionHandler):
                     self._debug("Found Certificate message")
                     cert_msg = TLS.CertificateMessage(msg.data)
                     for cert in cert_msg.certificates():
-                        self._debug("Found certificate (len={})".format(len(cert)))
-                        digest = cert.md5_hash()
-                        self._debug("Hash: {}".format(":".join([binascii.b2a_hex(b) for b in digest])))
+                        fingerprint = cert.fingerprint()
+                        self._debug("Found certificate: {}".format(fingerprint))
                     break
                 elif type == TLS.Constants.SERVER_HELLO_DONE:
                     server_done = True

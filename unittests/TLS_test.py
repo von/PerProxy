@@ -22,5 +22,25 @@ class TestDecodeLength(unittest.TestCase):
         self.assertIsNotNone(len)
         self.assertEqual(len, 0x5301)
 
+class TestCertificate(unittest.TestCase):
+    """Tests for Certificae object"""
+    
+    @classmethod
+    def _load_test_cert(cls):
+        """Load and return a test certificate"""
+        from TLS import Certificate
+        with open("google.pem") as f:
+            cert = Certificate.from_PEM("".join(f.readlines()))
+        return cert
+
+    def test_Certificate_Fingerprint(self):
+        """Test loading a certificate and generating a Fingerprint"""
+        cert = self._load_test_cert()
+        self.assertIsNotNone(cert)
+        fingerprint = cert.fingerprint()
+        self.assertIsNotNone(fingerprint)
+        self.assertEqual(str(fingerprint),
+                         "ef:e3:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")
+
 if __name__ == "__main__":
     unittest.main()

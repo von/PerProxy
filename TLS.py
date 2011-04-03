@@ -1,4 +1,6 @@
+import binascii
 import hashlib
+import ssl
 import struct
 
 class Constants:
@@ -187,8 +189,32 @@ class Certificate:
         """Return length of certificate"""
         return len(self.data)
 
-    def md5_hash(self):
-        """Return MD5 hash of certificate"""
+    @classmethod
+    def from_PEM(cls, pem):
+        """Create a Certificate object from PEM encoded data"""
+        return cls(ssl.PEM_cert_to_DER_cert(pem))
+
+    def fingerprint(self):
+        """Return MD5 Fingerprint of certificate"""
         hash = hashlib.md5()
         hash.update(self.data)
-        return hash.digest()
+        return Fingerprint(hash.digest())
+
+class Fingerprint:
+    """Fingerprint from certificate"""
+    
+    def __init__(self, data):
+        """Create a Fingerprint instance with given binary data"""
+        self.data = bytes(data)
+
+    @classmethod
+    def from_string(cls, str):
+        """Create Fingerprint from hex colon-separated word format"""
+        data = bytearray([int(n,16) for n in str.split(":")])
+        return cls(data)
+
+    def __str__(self, sep=":"):
+        return sep.join([binascii.b2a_hex(b) for b in self.data])
+
+    def __eq__(self, other):
+        return self.data == other.data
