@@ -44,19 +44,21 @@ class TestNotaryResponse(unittest.TestCase):
 
     def test_response_verify(self):
         """Test verification of response"""
-        from Notary import NotaryServiceType, NotaryResponseBadSignature
+        from Notary import NotaryResponseBadSignature
+        from Service import Service, ServiceType
         response = self._load_response("response.1")
         self.assertIsNotNone(response)
         notaries = self._load_notaries()
         notary = notaries.find_notary("cmu.ron.lcs.mit.edu")
         notary.verify_response(response,
-                               "www.citibank.com",
-                               443,
-                               NotaryServiceType.SSL)
+                               Service("www.citibank.com",
+                                       443,
+                                       ServiceType.SSL))
 
     def test_response_verify_failure(self):
         """Test verification of response"""
-        from Notary import NotaryServiceType, NotaryResponseBadSignature
+        from Notary import NotaryResponseBadSignature
+        from Service import Service, ServiceType
         response = self._load_response("response-bad.1")
         self.assertIsNotNone(response)
         self.assertIsNotNone(response)
@@ -64,16 +66,17 @@ class TestNotaryResponse(unittest.TestCase):
         notary = notaries.find_notary("cmu.ron.lcs.mit.edu")
         with self.assertRaises(NotaryResponseBadSignature):
             notary.verify_response(response,
-                                   "www.citibank.com",
-                                   443,
-                                   NotaryServiceType.SSL)
+                                   Service("www.citibank.com",
+                                           443,
+                                           ServiceType.SSL))
 
     def test_last_key_seen(self):
         """Test last_key_seen()"""
-        from Notary import NotaryServiceType, ServiceKey
+        from Notary import ServiceKey
+        from Service import ServiceType
         response = self._load_response("response.1")
         key = response.last_key_seen()
-        expected_key = ServiceKey.from_string(NotaryServiceType.SSL,
+        expected_key = ServiceKey.from_string(ServiceType.SSL,
                                               "87:71:5c:d4:7b:66:fd:9f:96:79:ba:0f:3e:15:b7:e3")                                  
         self.assertEqual(key, expected_key,
                          "{} != {}".format(key, expected_key))

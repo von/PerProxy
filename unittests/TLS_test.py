@@ -54,7 +54,7 @@ class TestFingerprint(unittest.TestCase):
         self.assertIsNotNone(fp2)
         fp3 = Fingerprint.from_string("aa:bb:e8:f4:c4:37:8a:5c:c6:6b:b5:b4:2e:dc:f2:06")  # Different from fp1
         self.assertIsNotNone(fp3)
-        self.assertEqual(fp1, f2)
+        self.assertEqual(fp1, fp2)
         self.assertNotEqual(fp1, fp3)
         self.assertNotEqual(fp2, fp3)
 
