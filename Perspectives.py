@@ -60,7 +60,7 @@ class Checker:
     def _get_cached_fingerprint(self, service):
         """Get cached fingerprint, checking for freshness"""
         if self.cache.has_entry(service):
-            (fingerprint, last_seen) = cache.get(service)
+            (fingerprint, last_seen) = self.cache.get(service)
             age = now() - last_seen
             if age < self.cache_stale_age:
                 self.logger.debug("Cache hit: {} -> {}".format(service,
