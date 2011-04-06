@@ -27,7 +27,7 @@ class Checker:
     """Inteface to Persepectices logic"""
     def __init__(self, service):
         """Create checker for new connection"""
-        self.logger.debug("New perspectives checker: ".format(service))
+        self.logger.debug("New perspectives checker for {}".format(service))
         self.service = service
         self.responses = None
         self.cached_fingerprint = None
