@@ -1,31 +1,45 @@
-PerProxy will be a simple HTTP proxy that uses Perspectives [1] to
-monitor SSL connections, detect and thwart SSL attempts using
-fradulent certificates (e.g. [3,4]). It is not in any way intended to
-replace the Perspectives Firefox extension [2], but to serve in
-instances when the extension cannot be used (e.g. you are using
-another browser, a version of Firefox that doesn't support the
-extension).
+PerProxy is a simple HTTP proxy that uses Perspectives [1] to monitor
+SSL connections, detect and thwart SSL attempts using fradulent
+certificates (e.g. [3,4]). It is not in any way intended to replace
+the Perspectives Firefox extension [2], but to serve in instances when
+the extension cannot be used (e.g. you are using another browser, a
+version of Firefox that doesn't support the extension).
 
-Currently PerProxy is a work in progress. At this time it parses the
-SSL handshake and extracts the server certificate, but does no more
-than that. Adding the check to Perspectives using the python
-Perspective-Server code [5] is next. Figuring out the right way to
-reject the connection and get a useful message to the broser and user
-is a challenge to be tackled.
+Currently PerProxy is a work in progress. This is how it works:
+
+* It acts as an HTTP proxy, receiving and parsing a CONNECT message
+from the client browser to obtain the target hostname.
+
+* It checks a local cache to see if it has an entry for what
+certificate to expect for the target host.
+
+** If the cache doesn't have an entry it opens an SSL connectin to the
+target host and obtains the presented certificate.
+
+** It queries Perspectives notaries to validate the certificate, on
+success it puts the certificate into the cace.
+
+** On failure, an error is returned to the client browser (see Note
+below).
+
+* The expected certificate is notes and a conection is established to
+the target host.
+
+* The SSL handshake is monitored until the server certificate is
+seen. The proxy verifies the certificate seen is the expected
+certificate. If it isn't the connect is shut down (see Note below).
+
+Note: There seems to be no good way for the proxy to return a useful
+error to the browser, even before the SSL handshake. Anything besides
+a 200 response to the CONNECT request results in a generic connection
+failed message to the user (this tested on Chrome, FF4, and Safari on
+a Mac).
 
 This code is freely distributed under an MIT license [6]. This code is
 based on and includes the python-proxy code [7], which is also
-distributed under the MIT license. The Perspectives-Server code is
-distributed under a GPLv3 license [8].
+distributed under the MIT license. 
 
 Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
-
-Note that the Perspective-Server code is included as a git
-submodule. After cloning the git repo, use the following commands to
-pull in the Perspectives-Server code:
-
-% git submodule init
-% git submodule update
 
 ---
 
@@ -36,4 +50,4 @@ pull in the Perspectives-Server code:
 [5] https://github.com/danwent/Perspectives-Server
 [6] http://www.opensource.org/licenses/mit-license.php
 [7] https://code.google.com/p/python-proxy/
-[8] http://www.gnu.org/licenses/gpl-3.0.html
+
