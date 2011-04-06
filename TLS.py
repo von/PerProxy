@@ -163,6 +163,19 @@ class CertificateMessage(HandshakeMessage):
         # Bytes 5-7
         return decode_length(self.data[self.HEADER_LENGTH:self.HEADER_LENGTH+self.CERTS_LENGTH_BYTES])
 
+    def get_server_certificate(self):
+        """Return end entity certificate of server"""
+        # Skip over header + length of all certificates bytes
+        view = self.data[self.HEADER_LENGTH + self.CERTS_LENGTH_BYTES:]
+        cert_len = decode_length(view[:self.CERT_LENGTH_BYTES])
+        # Skip over length bytes
+        cert_start = self.CERT_LENGTH_BYTES
+        cert_end = cert_start + cert_len
+        if len(view) < cert_end:
+            raise TLSException("data ({}) not long enough to hold certificate ({})".format(len(view), cert_len))
+        cert = Certificate(view[cert_start:cert_end])
+        return cert
+
     def certificates(self):
         """Returns a generator of certificates in message."""
         # Skip over header + length of all certificates bytes
