@@ -7,7 +7,7 @@ class TestNotaries(unittest.TestCase):
     """Tests for Notaries class"""
 
     def _load_notaries(self):
-        from Notary import Notaries
+        from Perspectives import Notaries
         return Notaries.from_file("./http_notary_list.txt")
 
     def test_init(self):

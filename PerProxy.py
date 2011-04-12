@@ -7,8 +7,9 @@ import socket
 import sys
 import thread
 
-from Perspectives import Checker, PerspectivesException
-from Service import Service, ServiceType
+from Perspectives import Checker
+from Perspectives import PerspectivesException
+from Perspectives import Service, ServiceType
 import PythonProxy
 import TLS
 

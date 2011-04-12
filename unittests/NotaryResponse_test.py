@@ -8,14 +8,14 @@ class TestNotaryResponse(unittest.TestCase):
 
     def _load_response(self, filename):
         """Load response from given filename and return"""
-        from Notary import NotaryResponse
+        from Perspectives import NotaryResponse
         with open(filename) as f:
             response = NotaryResponse("".join(f.readlines()))
         return response
 
     def _load_responses(self):
         """Load all responses and return NotariesResponses instance"""
-        from Notary import NotaryResponses
+        from Perspectives import NotaryResponses
         responses = NotaryResponses()
         for filename in [
             "response.1",
@@ -28,7 +28,7 @@ class TestNotaryResponse(unittest.TestCase):
 
     def _load_notaries(self):
         """Load notaries and return Notaries instance"""
-        from Notary import Notaries
+        from Perspectives import Notaries
         return Notaries.from_file("./http_notary_list.txt")
         
     def test_basic(self):
@@ -44,8 +44,8 @@ class TestNotaryResponse(unittest.TestCase):
 
     def test_response_verify(self):
         """Test verification of response"""
-        from Notary import NotaryResponseBadSignature
-        from Service import Service, ServiceType
+        from Perspectives import NotaryResponseBadSignature
+        from Perspectives import Service, ServiceType
         response = self._load_response("response.1")
         self.assertIsNotNone(response)
         notaries = self._load_notaries()
@@ -57,8 +57,8 @@ class TestNotaryResponse(unittest.TestCase):
 
     def test_response_verify_failure(self):
         """Test verification of response"""
-        from Notary import NotaryResponseBadSignature
-        from Service import Service, ServiceType
+        from Perspectives import NotaryResponseBadSignature
+        from Perspectives import Service, ServiceType
         response = self._load_response("response-bad.1")
         self.assertIsNotNone(response)
         self.assertIsNotNone(response)
@@ -72,8 +72,8 @@ class TestNotaryResponse(unittest.TestCase):
 
     def test_last_key_seen(self):
         """Test last_key_seen()"""
-        from Notary import ServiceKey
-        from Service import ServiceType
+        from Perspectives import ServiceKey
+        from Perspectives import ServiceType
         response = self._load_response("response.1")
         key = response.last_key_seen()
         expected_key = ServiceKey.from_string(ServiceType.SSL,
