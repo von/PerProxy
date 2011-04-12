@@ -129,7 +129,10 @@ class Notary:
 
         type may be with numeric value or 'https'"""
         url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service.hostname, service.port, service.type)
-        stream = urllib.urlopen(url)
+        try:
+            stream = urllib.urlopen(url)
+        except IOError as e:
+            raise NotaryException("Error connecting to Notary {}: {}".format(self, str(e)))
         if stream.getcode() == 404:
             raise NotaryUnknownServiceException()
         elif stream.getcode() != 200:
