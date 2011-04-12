@@ -10,26 +10,14 @@ import time
 import urllib
 import xml.dom.minidom
 
+from Exceptions import NotaryException
+from Exceptions import NotaryResponseBadSignature
+from Exceptions import NotaryResponseException
+from Exceptions import NotaryUnknownServiceException
 from Service import ServiceType
 from TLS import Fingerprint
 
 logger = logging.getLogger()
-
-class NotaryException(Exception):
-    """Exception related to a Notary"""
-    pass
-
-class NotaryResponseException(Exception):
-    """Exception related to NotaryResponse"""
-    pass
-
-class NotaryUnknownServiceException(NotaryResponseException):
-    """Notary knows nothing about service"""
-    pass
-
-class NotaryResponseBadSignature(NotaryResponseException):
-    """Verification of notary signature failed"""
-    pass
 
 class Notaries(list):
     """Class for representing the set of trusted Notaries"""
