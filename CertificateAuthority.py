@@ -4,12 +4,27 @@ from M2Crypto import EVP, m2, RSA, X509
 from threading import Lock
 
 class CertificateAuthority:
-    def __init__(self, cert, key, serial_number = None):
+    """A CA optimized for a SSL MITM proxy.
+
+    It is thread-safe and uses the same RSA key for all service certificates
+    (to save time generating RSA keys)."""
+
+    def __init__(self, cert, key,
+                 serial_number = None,
+                 service_key_length=2048,):
         self.cert = cert
         self.key = key
         self.serial_number = serial_number \
             if serial_number is not None else cert.get_serial_number() + 1
         self.serial_number_lock = Lock()
+        def null_callback(p,n):
+            """Call back that does nothing to avoid printing to stdout"""
+            pass
+        # Key to use for all service certificates
+        rsa_key = RSA.gen_key(service_key_length, m2.RSA_F4,
+                              callback=null_callback)
+        self.service_key = EVP.PKey()
+        self.service_key.assign_rsa(rsa_key)
 
     @classmethod
     def from_file(cls, cert_file, key_file):
@@ -19,15 +34,12 @@ class CertificateAuthority:
 
     def generate_ssl_credential(self,
                                 hostname,
-                                key_length=2048,
+                                
                                 lifetime=24*60*60,
                                 sign_hash="sha1"):
         """Generate credentials for a given target.
 
         Returns a tuple of X509 certificate and EVP key."""
-        rsa_key = RSA.gen_key(key_length, m2.RSA_F4)
-        key = EVP.PKey()
-        key.assign_rsa(rsa_key)
         cert = X509.X509()
         cert.set_serial_number(self._get_next_serial_number())
         cert.set_version(2)
@@ -35,7 +47,7 @@ class CertificateAuthority:
         name.CN = hostname
         cert.set_subject(name)
         cert.set_issuer(self.cert.get_subject())
-        cert.set_pubkey(key)
+        cert.set_pubkey(self.service_key)
         notBefore = m2.x509_get_not_before(cert.x509)
         notAfter  = m2.x509_get_not_after(cert.x509)
         m2.x509_gmtime_adj(notBefore, 0)
@@ -47,8 +59,8 @@ class CertificateAuthority:
                                  'digitalSignature, keyEncipherment')
         ext.set_critical()
         cert.add_ext(ext)
-        cert.sign(self.key, sign_hash)
-        return cert, key
+        cert.sign(self.service_key, sign_hash)
+        return cert, self.service_key
 
     def get_relative_subject(self):
         """Return a X509_NAME wthout the CN field set suitable for a EEC signed by the CA"""

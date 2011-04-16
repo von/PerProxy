@@ -25,6 +25,7 @@ class TestCertificateAuthority(unittest.TestCase):
         subject = cert.get_subject().as_text()
         # XXX: This assumed hard-coded O component
         self.assertEqual(subject, "O=My Org, CN=www.example.com")
+        self.assertEqual(key, ca.service_key)
 
 if __name__ == "__main__":
     unittest.main()
