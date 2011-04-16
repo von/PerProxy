@@ -1,6 +1,7 @@
 """Certificate Authority"""
 
 from M2Crypto import EVP, m2, RSA, X509
+from threading import Lock
 
 class CertificateAuthority:
     def __init__(self, cert, key, serial_number = None):
@@ -8,6 +9,7 @@ class CertificateAuthority:
         self.key = key
         self.serial_number = serial_number \
             if serial_number is not None else cert.get_serial_number() + 1
+        self.serial_number_lock = Lock()
 
     @classmethod
     def from_file(cls, cert_file, key_file):
@@ -27,8 +29,7 @@ class CertificateAuthority:
         key = EVP.PKey()
         key.assign_rsa(rsa_key)
         cert = X509.X509()
-        cert.set_serial_number(self.serial_number)
-        self.serial_number += 1
+        cert.set_serial_number(self._get_next_serial_number())
         cert.set_version(2)
         name = self.get_relative_subject()
         name.CN = hostname
@@ -55,3 +56,10 @@ class CertificateAuthority:
         ca_name = self.cert.get_subject()
         name.O = "My Org"  # TODO: Make this configurable
         return name
+
+    def _get_next_serial_number(self):
+        """Get next serial number to use in thread-safe manner"""
+        with self.serial_number_lock:
+            self.serial_number += 1
+            next_serial_number = self.serial_number
+        return next_serial_number
