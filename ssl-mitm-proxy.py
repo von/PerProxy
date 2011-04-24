@@ -93,7 +93,7 @@ class Handler(SocketServer.BaseRequestHandler):
                 self.logger.debug("Reading from {}".format(name(s)))
                 try:
                     data = s.recv(buflen)
-                except Exception as e:
+                except IOError as e:
                     self.logger.error("Error reading from {}: {}".format(name(s),
                                                                     str(e)))
                     done = True
