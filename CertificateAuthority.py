@@ -59,7 +59,7 @@ class CertificateAuthority:
                                  'digitalSignature, keyEncipherment')
         ext.set_critical()
         cert.add_ext(ext)
-        cert.sign(self.service_key, sign_hash)
+        cert.sign(self.key, sign_hash)
         return cert, self.service_key
 
     def get_relative_subject(self):
