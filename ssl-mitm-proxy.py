@@ -42,13 +42,18 @@ class Handler(SocketServer.BaseRequestHandler):
         self.logger.debug("Server subject is {}".format(server_name.as_text()))
 
         self.logger.debug("Connection to server established")
-        self.logger.debug("Responding to client.")
+
         cert_file, key_file = self.get_server_creds(hostname)
-        self.request.send("{} {} {}\n".format("HTTP/1.1",
-                                              "200",
-                                              "Connection established"))
-        self.request.send("Proxy-agent: SSL-MITM-1.0\n")
-        self.request.send("\n")
+        self.logger.debug("Responding to client.")
+        try:
+            self.request.send("{} {} {}\n".format("HTTP/1.1",
+                                                  "200",
+                                                  "Connection established"))
+            self.request.send("Proxy-agent: SSL-MITM-1.0\n")
+            self.request.send("\n")
+        except Exception as e:
+            self.error("Error responding to client: {}".format(str(e)))
+            return
         self.logger.debug("Starting SSL with client...")
         ssl_sock = ssl.wrap_socket(self.request,
                                    keyfile = key_file,
