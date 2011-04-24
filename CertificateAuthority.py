@@ -2,6 +2,7 @@
 
 from M2Crypto import EVP, m2, RSA, X509
 from threading import Lock
+import time
 
 class CertificateAuthority:
     """A CA optimized for a SSL MITM proxy.
@@ -11,11 +12,11 @@ class CertificateAuthority:
 
     def __init__(self, cert, key,
                  serial_number = None,
-                 service_key_length=2048,):
+                 service_key_length=2048):
         self.cert = cert
         self.key = key
         self.serial_number = serial_number \
-            if serial_number is not None else cert.get_serial_number() + 1
+            if serial_number is not None else int(time.time())
         self.serial_number_lock = Lock()
         def null_callback(p,n):
             """Call back that does nothing to avoid printing to stdout"""
