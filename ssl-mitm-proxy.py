@@ -92,6 +92,11 @@ class Handler(SocketServer.BaseRequestHandler):
             for s in read_ready:
                 self.logger.debug("Reading from {}".format(name(s)))
                 try:
+                    # Problem: If amount of data is greater than
+                    # buflen we will read buflen, but select() won't
+                    # then indicate there there is more to read, so
+                    # we'll leave data unread which will probably hang
+                    # the connection.
                     data = s.recv(buflen)
                 except IOError as e:
                     self.logger.error("Error reading from {}: {}".format(name(s),
