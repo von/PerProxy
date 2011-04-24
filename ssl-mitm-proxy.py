@@ -24,42 +24,44 @@ class Handler(SocketServer.BaseRequestHandler):
 
     ca = None
 
+    def setup(self):
+        current_thread = threading.currentThread()
+        self.logger = logging.getLogger(current_thread.getName())
+
     def handle(self):
-        output = logging.getLogger()
-        output.info("Connection received.")
+        self.logger.info("Connection received.")
         header = self.read_header()
         (method, path, protocol) = header[0].strip().split()
         hostname, port_str = path.split(":")
         port = int(port_str)
 
-        output.info("Connecting to {}:{}".format(hostname, port))
+        self.logger.info("Connecting to {}:{}".format(hostname, port))
         server_sock = self.connect_to_server(hostname, port)
         server_cert = server_sock.get_peer_cert()
         server_name = server_cert.get_subject()
-        output.debug("Server subject is {}".format(server_name.as_text()))
+        self.logger.debug("Server subject is {}".format(server_name.as_text()))
 
-        output.debug("Connection to server established")
-        output.debug("Responding to client.")
+        self.logger.debug("Connection to server established")
+        self.logger.debug("Responding to client.")
         cert_file, key_file = self.get_server_creds(hostname)
         self.request.send("{} {} {}\n".format("HTTP/1.1",
                                               "200",
                                               "Connection established"))
         self.request.send("Proxy-agent: SSL-MITM-1.0\n")
         self.request.send("\n")
-        output.debug("Starting SSL with client...")
+        self.logger.debug("Starting SSL with client...")
         ssl_sock = ssl.wrap_socket(self.request,
                                    keyfile = key_file,
                                    certfile = cert_file,
                                    server_side = True)
-        output.debug("SSL with client successful")
+        self.logger.debug("SSL with client successful")
         self.pass_through(ssl_sock, server_sock)
         self.request.close()
         server_sock.close()
 
     def pass_through(self, client, server, buflen=8192):
         """Pass data back and forth between client and server"""
-        output = logging.getLogger()
-        output.info("Entering pass_through mode")
+        self.logger.info("Entering pass_through mode")
         def name(s):
             if s == client:
                 return "client"
@@ -78,19 +80,19 @@ class Handler(SocketServer.BaseRequestHandler):
         while True:
             (read_ready, write_ready, error) = select.select(socks, [], socks)
             if len(error) != 0:
-                output.info("Got exception from {}".format(name(error[0])))
+                self.logger.info("Got exception from {}".format(name(error[0])))
                 break
             for s in read_ready:
-                output.debug("Reading from {}".format(name(s)))
+                self.logger.debug("Reading from {}".format(name(s)))
                 try:
                     data = s.recv(buflen)
                 except Exception as e:
-                    output.error("Error reading from {}: {}".format(name(s),
+                    self.logger.error("Error reading from {}: {}".format(name(s),
                                                                     str(e)))
                     return  # XXX Cleaner way to handle this?
                 if len(data) > 0:
                     out = out_sock(s)
-                    output.debug("Writing {} bytes to {}".format(len(data),
+                    self.logger.debug("Writing {} bytes to {}".format(len(data),
                                                                  name(out)))
                     out.sendall(data)
 
@@ -138,8 +140,7 @@ def main(argv=None):
     output = logging.getLogger()
     output.setLevel(logging.DEBUG)
     output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
-    # Set up formatter to just print message without preamble
-    output_handler.setFormatter(logging.Formatter("%(message)s"))
+    output_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
     output.addHandler(output_handler)
 
     # Argument parsing
