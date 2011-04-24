@@ -63,6 +63,7 @@ class Handler(SocketServer.BaseRequestHandler):
         self.pass_through(ssl_sock, server_sock)
         self.request.close()
         server_sock.close()
+        self.logger.info("Done.")
 
     def pass_through(self, client, server, buflen=8192):
         """Pass data back and forth between client and server"""
@@ -82,7 +83,8 @@ class Handler(SocketServer.BaseRequestHandler):
             else:
                 raise Exception("Unknown socket {}".format(s.fileno()))
         socks = [client, server]
-        while True:
+        done = False
+        while not done:
             (read_ready, write_ready, error) = select.select(socks, [], socks)
             if len(error) != 0:
                 self.logger.info("Got exception from {}".format(name(error[0])))
@@ -94,12 +96,18 @@ class Handler(SocketServer.BaseRequestHandler):
                 except Exception as e:
                     self.logger.error("Error reading from {}: {}".format(name(s),
                                                                     str(e)))
-                    return  # XXX Cleaner way to handle this?
-                if len(data) > 0:
-                    out = out_sock(s)
+                    done = True
+                    break
+                out = out_sock(s)
+                if len(data) == 0:
+                    self.logger.info("Got EOF from {}".format(name(s)))
+                    done = True
+                    break
+                else:
                     self.logger.debug("Writing {} bytes to {}".format(len(data),
                                                                  name(out)))
                     out.sendall(data)
+        self.logger.info("Pass through done.")
 
     def connect_to_server(self, hostname, port):
         """Connect to given hostname and port and return SSL.Connection"""
