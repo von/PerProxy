@@ -110,7 +110,11 @@ class Handler(SocketServer.BaseRequestHandler):
         self.logger.info("Pass through done.")
 
     def connect_to_server(self, hostname, port):
-        """Connect to given hostname and port and return SSL.Connection"""
+        """Connect to given hostname and port and return SSL.Connection
+
+        We use M2Crypto.SSL.Connection here because it allows us to get
+        the server certificate without validating it (with the python
+        ssl module does not allow."""
         context = M2Crypto.SSL.Context("sslv3")
         s = M2Crypto.SSL.Connection(context)
         s.connect((hostname, port))
