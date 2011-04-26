@@ -52,7 +52,7 @@ class Handler(SocketServer.BaseRequestHandler):
             self.request.send("Proxy-agent: SSL-MITM-1.0\n")
             self.request.send("\n")
         except Exception as e:
-            self.error("Error responding to client: {}".format(str(e)))
+            self.logger.error("Error responding to client: {}".format(str(e)))
             return
         self.logger.debug("Starting SSL with client...")
         ssl_sock = ssl.wrap_socket(self.request,
