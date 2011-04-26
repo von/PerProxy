@@ -16,6 +16,23 @@ import time
 
 from CertificateAuthority import CertificateAuthority
 
+def recvall(s, buflen=8192):
+    """Given a non-blocking ssl.SSLSocket or M2Crypto.SSL.Connection read all pending data."""
+    chunks = []
+    while True:
+        try:
+            # SSLSocket will raise ssl.SSLError if no data pending
+            #           or return 0 bytes on EOF
+            # Connection will return None
+            data = s.recv(buflen)
+        except ssl.SSLError:
+            data = None
+        if data is None or len(data) == 0:
+            break
+        chunks.append(data)
+    return "".join(chunks)
+
+
 # Not order of inherited classes here is important
 class ProxyServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
@@ -65,7 +82,7 @@ class Handler(SocketServer.BaseRequestHandler):
         server_sock.close()
         self.logger.info("Done.")
 
-    def pass_through(self, client, server, buflen=8192):
+    def pass_through(self, client, server):
         """Pass data back and forth between client and server"""
         self.logger.info("Entering pass_through mode")
         def name(s):
@@ -82,6 +99,8 @@ class Handler(SocketServer.BaseRequestHandler):
                 return client
             else:
                 raise Exception("Unknown socket {}".format(s.fileno()))
+        client.setblocking(False)
+        server.setblocking(False)
         socks = [client, server]
         done = False
         while not done:
@@ -92,12 +111,7 @@ class Handler(SocketServer.BaseRequestHandler):
             for s in read_ready:
                 self.logger.debug("Reading from {}".format(name(s)))
                 try:
-                    # Problem: If amount of data is greater than
-                    # buflen we will read buflen, but select() won't
-                    # then indicate there there is more to read, so
-                    # we'll leave data unread which will probably hang
-                    # the connection.
-                    data = s.recv(buflen)
+                    data = recvall(s)
                 except IOError as e:
                     self.logger.error("Error reading from {}: {}".format(name(s),
                                                                     str(e)))
@@ -105,9 +119,15 @@ class Handler(SocketServer.BaseRequestHandler):
                     break
                 out = out_sock(s)
                 if len(data) == 0:
-                    self.logger.info("Got EOF from {}".format(name(s)))
-                    done = True
-                    break
+                    # HACK: M2Crypto.SSL.Connection seems to randomly
+                    # return 0 bytes even though select says it is
+                    # read ready. So ignore 0 bytes read from server
+                    if s == server:
+                        pass
+                    else:
+                        self.logger.info("Got EOF from {}".format(name(s)))
+                        done = True
+                        break
                 else:
                     self.logger.debug("Writing {} bytes to {}".format(len(data),
                                                                  name(out)))
