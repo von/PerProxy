@@ -16,6 +16,12 @@ import time
 
 from CertificateAuthority import CertificateAuthority
 
+from Perspectives import Checker
+from Perspectives import PerspectivesException
+from Perspectives import Service, ServiceType
+
+from TLS import Fingerprint
+
 def recvall(s, buflen=8192):
     """Given a non-blocking ssl.SSLSocket or M2Crypto.SSL.Connection read all pending data."""
     chunks = []
@@ -52,12 +58,24 @@ class Handler(SocketServer.BaseRequestHandler):
         hostname, port_str = path.split(":")
         port = int(port_str)
 
+        self.logger.info("Initialing Perspectives checker for {}:{}".format(hostname, port))
+        self.perspectives_checker = Checker(Service(hostname,
+                                                    port,
+                                                    ServiceType.SSL))
+
         self.logger.info("Connecting to {}:{}".format(hostname, port))
         server_sock = self.connect_to_server(hostname, port)
         server_cert = server_sock.get_peer_cert()
         server_name = server_cert.get_subject()
         self.logger.debug("Server subject is {}".format(server_name.as_text()))
 
+        self.logger.info("Checking certificate with Perspectives")
+        fingerprint = Fingerprint.from_M2Crypto_X509(server_cert)
+        try:
+            self.perspectives_checker.check_seen_fingerprint(fingerprint)
+        except PerspectivesException as e:
+            self.logger.error("Perspectives check failed: {}".foramt(str(e)))
+            return
         self.logger.debug("Connection to server established")
 
         cert_file, key_file = self.get_server_creds(hostname)
@@ -206,12 +224,18 @@ def main(argv=None):
     parser.add_argument("-K", "--ca-key-file",
                         type=str, default="./ca-key.pem",
                         help="specify CA key file", metavar="filename")
+    parser.add_argument("-N", "--notaries-file",
+                        type=str, default="./http_notary_list.txt",
+                        help="specify notaries file", metavar="filename")
     parser.add_argument("-p", "--port", dest="proxy_port",
                         type=int, default=8080,
                         help="specify service port", metavar="port")
     args = parser.parse_args()
 
     output_handler.setLevel(args.output_level)
+
+    output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
+    Checker.init_class(notaries_file = args.notaries_file)
 
     output.debug("Loading CA from {} and {}".format(args.ca_cert_file,
                                                     args.ca_key_file))
