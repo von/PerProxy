@@ -219,7 +219,7 @@ def main(argv=None):
                                  dest="output_level",
                                  help="run quietly")
     parser.add_argument("-C", "--ca-cert-file",
-                        type=str, default="./ca-cert.pem",
+                        type=str, default="./ca-cert.crt",
                         help="specify CA cert file", metavar="filename")
     parser.add_argument("-K", "--ca-key-file",
                         type=str, default="./ca-key.pem",
