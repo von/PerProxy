@@ -74,7 +74,7 @@ class Handler(SocketServer.BaseRequestHandler):
         try:
             self.perspectives_checker.check_seen_fingerprint(fingerprint)
         except PerspectivesException as e:
-            self.logger.error("Perspectives check failed: {}".foramt(str(e)))
+            self.logger.error("Perspectives check failed: {}".format(str(e)))
             return
         self.logger.debug("Connection to server established")
 
