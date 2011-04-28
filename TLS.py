@@ -226,6 +226,13 @@ class Fingerprint:
         data = bytearray([int(n,16) for n in str.split(":")])
         return cls(data)
 
+    @classmethod
+    def from_M2Crypto_X509(cls, cert):
+        """Create Fingerprint from M2Crypto.X509.X509 instance."""
+        # Data will be hex string without colons
+        data = binascii.a2b_hex(cert.get_fingerprint())
+        return cls(data)
+
     def __str__(self, sep=":"):
         return sep.join([binascii.b2a_hex(b) for b in self.data])
 
