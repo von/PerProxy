@@ -1,47 +1,79 @@
-PerProxy is a simple HTTP proxy that uses Perspectives [1] to monitor
+PerProxy is a HTTPS proxy that uses Perspectives [1] to monitor
 SSL connections, detect and thwart SSL attempts using fradulent
 certificates (e.g. [3,4]). It is not in any way intended to replace
 the Perspectives Firefox extension [2], but to serve in instances when
 the extension cannot be used (e.g. you are using another browser, a
 version of Firefox that doesn't support the extension).
 
-Currently PerProxy is a work in progress. This is how it works:
+Note that PerProxy has only been tested with Firefox 4.x at this
+time. It is most defintely a work in progress. Use at your own risk.
 
-* It acts as an HTTP proxy, receiving and parsing a CONNECT message
+PerProxy acts as a SSL MITM, accepting SSL credentials from the
+browser and making certificates on the fly to imitate the expected
+server. As such, to use PerProxy, the first step is to create a CA
+certificate for it to use:
+
+./m2crypto-create-ca.py
+
+Then you need to load the newly create CA certificate into your
+browser. With FireFox, you just need to open the certificate, e.g. use
+a URL such as:
+
+file:///path/to/PerProxy/ca-cert.crt
+
+And you will be prompted and walked through the process.
+
+Then you can fire up PerProxy (use '-d' for debug mode will probably
+be most useful):
+
+./PerProxy -d
+
+Then configure your web browser to use port localhost:8080 as a HTTPS
+proxy. With FireFox this is under Preferences, Advanced, Network,
+Connection, Settings. Select "Manual proxy configuration" and for "SSL
+Proxy" enter "localhost" and "8080". Click OK to save. (Using an
+add-on such as QuickProxy will let you turn this setting on and off
+easily.)
+
+Now connect to an HTTPS website and watch the output from PerProxy.
+
+Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
+
+--------------------
+
+Here is how PerProxy currently works:
+
+* It acts as an HTTPS proxy, receiving and parsing a CONNECT message
 from the client browser to obtain the target hostname.
 
 * It checks a local cache to see if it has an entry for what
 certificate to expect for the target host.
 
-** If the cache doesn't have an entry it opens an SSL connectin to the
+** If the cache doesn't have an entry it opens an SSL connection to the
 target host and obtains the presented certificate.
 
 ** It queries Perspectives notaries to validate the certificate, on
-success it puts the certificate into the cace.
+success it puts the certificate into the cache.
 
 ** On failure, an error is returned to the client browser (see Note
 below).
 
-* The expected certificate is notes and a conection is established to
-the target host.
+* The expected certificate is noted and a SSL conection is established
+to the target host.
 
-* The SSL handshake is monitored until the server certificate is
-seen. The proxy verifies the certificate seen is the expected
-certificate. If it isn't the connect is shut down (see Note below).
+* The returned certificate is verified against what was previously
+verified with Perspectives. If it doesn't match, an error is thrown
+and the connection is closed.
 
-Note: There seems to be no good way for the proxy to return a useful
-error to the browser, even before the SSL handshake. Anything besides
-a 200 response to the CONNECT request results in a generic connection
-failed message to the user (this tested on Chrome, FF4, and Safari on
-a Mac).
+Note: All error handling is very rudimentary right now. PerProxy will
+print logs as things happen to stdout, which is currently the only way
+of telling what is going on.
 
-This code is freely distributed under an MIT license [6]. This code is
-based on and includes the python-proxy code [7], which is also
-distributed under the MIT license. 
+--------------------
 
-Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
+This code is freely distributed under an MIT license [6].
 
----
+--------------------
 
 [1] http://www.networknotary.org/
 [2] http://www.networknotary.org/firefox.html
@@ -49,5 +81,4 @@ Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
 [4] http://crypto.stanford.edu/ssl-mitm/
 [5] https://github.com/danwent/Perspectives-Server
 [6] http://www.opensource.org/licenses/mit-license.php
-[7] https://code.google.com/p/python-proxy/
 
