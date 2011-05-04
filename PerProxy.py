@@ -90,10 +90,14 @@ class Handler(SocketServer.BaseRequestHandler):
             self.logger.error("Error responding to client: {}".format(str(e)))
             return
         self.logger.debug("Starting SSL with client...")
-        ssl_sock = ssl.wrap_socket(self.request,
-                                   keyfile = key_file,
-                                   certfile = cert_file,
-                                   server_side = True)
+        try:
+            ssl_sock = ssl.wrap_socket(self.request,
+                                       keyfile = key_file,
+                                       certfile = cert_file,
+                                       server_side = True)
+        except ssl.SSLError as e:
+            self.logger.error("Error starting SSL with client: {}".format(str(e)))
+            return
         self.logger.debug("SSL with client successful")
         self.pass_through(ssl_sock, server_sock)
         self.request.close()
