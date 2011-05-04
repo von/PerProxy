@@ -23,35 +23,41 @@ def now():
 
 class Checker:
     """Inteface to Persepectices logic"""
-    def __init__(self, service):
-        """Create checker for new connection"""
-        self.logger.debug("New perspectives checker for {}".format(service))
-        self.service = service
-        self.responses = None
-        self.cached_fingerprint = None
-        fingerprint = self._get_cached_fingerprint(service)
-        if fingerprint is None:
-            # No fingerprint in cache (or was stale)
-            # Get and verify cerficiate
-            fingerprint = self._get_server_fingerprint(service)
+
+    def __init__(self, policy=None, cache=None, notaries_file=None):
+        """Check a Perspectives Checker instance"""
+        self.logger = logging.getLogger()
+        self.logger.debug("Perspective Checker class initializing")
+        self.cache = cache if cache is not None \
+            else ServiceCache()
+        # Age at which entry in cache is stale and ignored
+        self.cache_stale_age = 24 * 3600
+        notaries_file = notaries_file if notaries_file is not None \
+            else "./http_notary_list.txt"
+        self.notaries = Notaries.from_file(notaries_file)
+        # Default policy is quorum of n-1 and quorum duration of 1 day
+        self.policy = policy if policy is not None \
+            else Policy(quorum=len(self.notaries) - 1,
+                        quorum_duration=24*3600)
+        self.logger.debug("Perspective instance initialized")
+
+    def check_seen_fingerprint(self, service, fingerprint):
+        """Check the actual server fingerprint seen.
+
+        Raises exception on problem."""
+        self.logger.debug("Checking seen fingerprint for {}: {}".format(service, fingerprint))
+        cached_fingerprint = self._get_cached_fingerprint(service)
+        if (cached_fingerprint is None or
+            fingerprint != cached_fingerprint):
+            self.logger.debug("Cache miss, checking fingerprint against policy")
             try:
                 self.do_policy_check(service, fingerprint)
             except PolicyException as e:
                 raise PerspectivesException("Policy check failed on {} for {}: {}".format(fingerprint, service, e))
+            self.logger.info("Fingerprint checked out.")
             self.cache.add(service, fingerprint)
-        self.expected_fingerprint = fingerprint
-
-    def check_seen_fingerprint(self, fingerprint):
-        """Check the actual server fingerprint seen.
-
-        Raises exception on problem."""
-        self.logger.debug("Checking seen fingerprint for {}: {}".format(self.service, fingerprint))
-        if fingerprint == self.expected_fingerprint:
-            self.logger.debug("Seen fingerprint matches expected")
         else:
-            # XXX Check new fingerprint against policy?
-            raise PerspectivesException("{}: seen fingerprint does not match expected: {} != {}".format(self.service, fingerprint, self.expected_fingerprint))
-        # Success
+            self.logger.info("Fingerprint matched cache")
 
     def _get_cached_fingerprint(self, service):
         """Get cached fingerprint, checking for freshness"""
@@ -76,26 +82,6 @@ class Checker:
         fingerprint = cert.fingerprint()
         self.logger.debug("Got certificate: {}".format(fingerprint))
         return fingerprint
-
-    @classmethod
-    def init_class(cls, policy=None, cache=None, notaries_file=None):
-        """Initialize the class."""
-        cls.logger = logging.getLogger()
-        cls.logger.debug("Perspective class initializing")
-        cls.cache = cache if cache is not None \
-            else ServiceCache()
-        # Age at which entry in cache is stale and ignored
-        cls.cache_stale_age = 24 * 3600
-        notaries_file = notaries_file if notaries_file is not None \
-            else "./http_notary_list.txt"
-        cls.notaries = Notaries.from_file(notaries_file)
-        # Default policy is quorum of n-1 and quorum duration of 1 day
-        cls.policy = policy if policy is not None \
-            else Policy(quorum=len(cls.notaries) - 1,
-                        quorum_duration=24*3600)
-        cls.logger.debug("Perspective instance initialized")
-
-
 
     def do_policy_check(self, service, fingerprint):
         """Check given service and certificate against Notaries with our policy
