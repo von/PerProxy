@@ -46,8 +46,6 @@ class Checker:
 
         Raises exception on problem."""
         self.logger.debug("Checking seen fingerprint for {}: {}".format(self.service, fingerprint))
-        print fingerprint.__class__.__name__
-        print self.expected_fingerprint.__class__.__name__
         if fingerprint == self.expected_fingerprint:
             self.logger.debug("Seen fingerprint matches expected")
         else:
