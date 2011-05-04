@@ -46,6 +46,7 @@ class ProxyServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 class Handler(SocketServer.BaseRequestHandler):
 
     ca = None
+    checker = None
 
     def setup(self):
         current_thread = threading.currentThread()
@@ -58,11 +59,6 @@ class Handler(SocketServer.BaseRequestHandler):
         hostname, port_str = path.split(":")
         port = int(port_str)
 
-        self.logger.info("Initialing Perspectives checker for {}:{}".format(hostname, port))
-        self.perspectives_checker = Checker(Service(hostname,
-                                                    port,
-                                                    ServiceType.SSL))
-
         self.logger.info("Connecting to {}:{}".format(hostname, port))
         server_sock = self.connect_to_server(hostname, port)
         server_cert = server_sock.get_peer_cert()
@@ -71,8 +67,9 @@ class Handler(SocketServer.BaseRequestHandler):
 
         self.logger.info("Checking certificate with Perspectives")
         fingerprint = Fingerprint.from_M2Crypto_X509(server_cert)
+        service = Service(hostname, port)
         try:
-            self.perspectives_checker.check_seen_fingerprint(fingerprint)
+            self.checker.check_seen_fingerprint(service, fingerprint)
         except PerspectivesException as e:
             self.logger.error("Perspectives check failed: {}".format(str(e)))
             return
@@ -239,12 +236,12 @@ def main(argv=None):
     output_handler.setLevel(args.output_level)
 
     output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
-    Checker.init_class(notaries_file = args.notaries_file)
 
     output.debug("Loading CA from {} and {}".format(args.ca_cert_file,
                                                     args.ca_key_file))
     Handler.ca = CertificateAuthority.from_file(args.ca_cert_file,
                                                 args.ca_key_file)
+    Handler.checker = Checker(notaries_file = args.notaries_file)
 
     output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
                                                                args.proxy_port))
