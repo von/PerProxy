@@ -73,16 +73,6 @@ class Checker:
             self.logger.debug("Cache miss for {}".format(service))
         return None
 
-    def _get_server_fingerprint(self, service):
-        """Get fingerprint of certificate seen on server"""
-        # XXX This assumes SSL in a big way
-        self.logger.debug("Querying {} for certificate...".format(service))
-        cert_pem = ssl.get_server_certificate((service.hostname, service.port))
-        cert = Certificate.from_PEM(cert_pem)
-        fingerprint = cert.fingerprint()
-        self.logger.debug("Got certificate: {}".format(fingerprint))
-        return fingerprint
-
     def do_policy_check(self, service, fingerprint):
         """Check given service and certificate against Notaries with our policy
 
