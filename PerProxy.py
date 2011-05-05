@@ -3,6 +3,7 @@
 import M2Crypto
 
 import argparse
+import ConfigParser
 import logging
 import os
 import select
@@ -190,29 +191,59 @@ class Handler(SocketServer.BaseRequestHandler):
             line += self.request.recv(1)
         return line
 
-def main(argv=None):
-    # Do argv default this way, as doing it in the functional
-    # declaration sets it at compile time.
-    if argv is None:
-        argv = sys.argv
-
-    # Set up out output via logging module
-    output = logging.getLogger()
-    output.setLevel(logging.DEBUG)
-    output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
-    output_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
-    output.addHandler(output_handler)
-
-    # Argument parsing
-    parser = argparse.ArgumentParser(
-        description=__doc__, # printed with -h/--help
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+def parse_args(argv):
+    """Parse our command line arguments"""
+    # Parse any conf_file specification
+    # We make this parser with add_help=False so that
+    # it doesn't parse -h and print help.
+    conf_parser = argparse.ArgumentParser(
+        # Turn off help, so we print all options in response to -h
+        add_help=False
         )
+    conf_parser.add_argument("-c", "--conf_file",
+                        help="Specify config file", metavar="FILE")
+    args, remaining_argv = conf_parser.parse_known_args(argv[1:])
+    defaults = {
+        "output_level" : logging.INFO,
+        "ca_cert_file" : "./ca-cert.crt",
+        "ca_key_file" : "./ca-key.pem",
+        "notaries_file" : "./http_notary_list.txt",
+        "proxy_hostname" : "localhost",
+        "proxy_port" : 8080,
+        }
+    if args.conf_file:
+        # Mappings from configuraition file to options
+        conf_mappings = [
+            # ((section, option), option)
+            (("CA", "CertFile"), "ca_cert_file"),
+            (("CA", "KeyFile"), "ca_key_file"),
+            (("Perspectives", "NotaryFile"), "notaries_file"),
+            (("Proxy", "Hostname"), "proxy_hostname"),
+            (("Proxy", "Port"), "proxy_port")
+            ]
+        config = ConfigParser.SafeConfigParser()
+        config.read([args.conf_file])
+        for sec_opt, option in conf_mappings:
+            if config.has_option(*sec_opt):
+                value = config.get(*sec_opt)
+                defaults[option] = value
+
+    # Parse rest of arguments
+    # Don't surpress add_help here so it will handle -h
+    parser = argparse.ArgumentParser(
+        # Inherit options from config_parser
+        parents=[conf_parser],
+        # print script description with -h/--help
+        description=__doc__,
+        # Don't mess with format of description
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+    parser.set_defaults(**defaults)
     # Only allow one of debug/quiet mode
     verbosity_group = parser.add_mutually_exclusive_group()
     verbosity_group.add_argument("-d", "--debug",
                                  action='store_const', const=logging.DEBUG,
-                                 dest="output_level", default=logging.INFO,
+                                 dest="output_level", 
                                  help="print debugging")
     verbosity_group.add_argument("-q", "--quiet",
                                  action="store_const", const=logging.WARNING,
@@ -230,7 +261,23 @@ def main(argv=None):
     parser.add_argument("-p", "--port", dest="proxy_port",
                         type=int, default=8080,
                         help="specify service port", metavar="port")
-    args = parser.parse_args()
+    args = parser.parse_args(remaining_argv)
+    return args
+
+def main(argv=None):
+    # Do argv default this way, as doing it in the functional
+    # declaration sets it at compile time.
+    if argv is None:
+        argv = sys.argv
+
+    # Set up out output via logging module
+    output = logging.getLogger()
+    output.setLevel(logging.DEBUG)
+    output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
+    output_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    output.addHandler(output_handler)
+
+    args = parse_args(argv)
 
     output_handler.setLevel(args.output_level)
 
@@ -244,7 +291,7 @@ def main(argv=None):
 
     output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
                                                                args.proxy_port))
-    server = ProxyServer(("localhost", args.proxy_port), Handler)
+    server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.setDaemon(True)
     server_thread.start()
