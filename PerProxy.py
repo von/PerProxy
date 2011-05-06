@@ -50,8 +50,7 @@ class Handler(SocketServer.BaseRequestHandler):
     checker = None
 
     def setup(self):
-        current_thread = threading.currentThread()
-        self.logger = logging.getLogger(current_thread.getName())
+        self.logger = logging.getLogger("Handler")
 
     def handle(self):
         self.logger.info("Connection received.")
@@ -275,7 +274,7 @@ def main(argv=None):
     output = logging.getLogger()
     output.setLevel(logging.DEBUG)
     output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
-    output_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    output_handler.setFormatter(logging.Formatter("%(threadName)s:%(name)s: %(message)s"))
     output.addHandler(output_handler)
 
     args = parse_args(argv)

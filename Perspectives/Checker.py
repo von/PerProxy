@@ -26,7 +26,7 @@ class Checker:
 
     def __init__(self, policy=None, cache=None, notaries_file=None):
         """Check a Perspectives Checker instance"""
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger("Perspectives.Checker")
         self.logger.debug("Perspective Checker class initializing")
         self.cache = cache if cache is not None \
             else ServiceCache()

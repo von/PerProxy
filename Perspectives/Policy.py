@@ -4,8 +4,6 @@ import logging
 
 import Notary
 
-logger = logging.getLogger()
-
 class PolicyException(Exception):
     """Policy check failed"""
     pass
@@ -21,6 +19,8 @@ class Policy:
         self.quorum = quorum
         self.quorum_duration = quorum_duration
         self.stale_limit = stale_limit
+        self.logger = logging.getLogger("Perspectives.Policy")
+        self.logger.debug("Initialized.")
 
     def check(self, fingerprint, responses, time=None):
         """Do responses satisfy polify for given certificate fingerprint at given time.
@@ -30,14 +30,16 @@ class Policy:
         time is an integer expressing seconds since 1970 (None == now).
 
         Raises exception on failure."""
+        self.logger.debug("check({}) called with {} responses".format(fingerprint,
+                                                                      len(responses)))
         qduration = responses.quorum_duration(fingerprint,
                                               self.quorum,
                                               self.stale_limit)
-        logger.debug("Quorum duration is {}".format(qduration))
+        self.logger.debug("Quorum duration is {}".format(qduration))
         if qduration == 0:
             raise PolicyException("Given key not valid")
         elif qduration < self.quorum_duration:
             raise PolicyException("Certificate not valid long enough (only {} seconds)".format(qduration))
-        logger.debug("Policy check succeeded".format(qduration))
+        self.logger.debug("Policy check succeeded".format(qduration))
 
         

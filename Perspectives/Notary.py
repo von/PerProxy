@@ -17,10 +17,11 @@ from Exceptions import NotaryUnknownServiceException
 from Service import ServiceType
 from TLS import Fingerprint
 
-logger = logging.getLogger()
 
 class Notaries(list):
     """Class for representing the set of trusted Notaries"""
+
+    logger = logging.getLogger("Perspectives.Notary")
 
     @classmethod
     def from_file(cls, file_path):
@@ -66,17 +67,17 @@ class Notaries(list):
             to_query = random.sample(self, num)
         responses = NotaryResponses()
         for notary in to_query:
-            self._debug("Querying {} about {}...".format(notary, service))
+            self.logger.debug("Querying {} about {}...".format(notary, service))
             try:
                 response = notary.query(service)
-                self._debug("Got response from {}".format(notary))
+                self.logger.debug("Got response from {}".format(notary))
                 notary.verify_response(response, service)
-                self._debug("Response signature verified")
+                self.logger.debug("Response signature verified")
                 responses.append(response)
             except NotaryUnknownServiceException as e:
-                self._debug("{} knows nothing about {}".format(notary, service))
+                self.logger.debug("{} knows nothing about {}".format(notary, service))
             except NotaryException as e:
-                self._debug("No response from {}: {}".format(notary, e))
+                self.logger.debug("No response from {}: {}".format(notary, e))
         return responses
 
     def find_notary(self, hostname, port=None):
@@ -96,9 +97,6 @@ class Notaries(list):
 
     def __str__(self):
         return "[" + ",".join([str(n) for n in self]) + "]"
-
-    def _debug(self, msg):
-        print msg
 
 
 class Notary:
@@ -213,6 +211,8 @@ class Notary:
 class NotaryResponses(list):
     """Wrapper around a list of NotaryResponse instances"""
 
+    logger = logging.getLogger("Perspectives.NotaryResponses")
+
     def quorum_duration(self, cert_fingerprint, quorum, stale_limit):
         """Return the quorum duration of the given certificate in seconds.
 
@@ -229,10 +229,10 @@ class NotaryResponses(list):
         non_stale_response_times = filter(lambda t: t > stale_time_cutoff,
                                           last_seen_key_times)
         if len(non_stale_response_times) == 0:
-            logger.debug("No non-stale responses")
+            self.logger.debug("No non-stale responses")
             return(0)
         oldest_response_time = min(non_stale_response_times)
-        logger.debug("Oldest response time is {}".format(time.ctime(oldest_response_time)))
+        self.logger.debug("Oldest response time is {}".format(time.ctime(oldest_response_time)))
 
         # Get list of all times we had a key change
         key_change_times = reduce(lambda a,b: a + b,
@@ -248,14 +248,14 @@ class NotaryResponses(list):
 
         first_valid_time = None
         for change_time in key_change_times:
-            logger.debug("Checking time {}".format(time.ctime(change_time)))
+            self.logger.debug("Checking time {}".format(time.ctime(change_time)))
             agreement_count = self.key_agreement_count(cert_fingerprint,
                                                        change_time)
             if agreement_count >= quorum:
                 first_valid_time = change_time
-                logger.debug("Quorum made with {} notaries".format(agreement_count))
+                self.logger.debug("Quorum made with {} notaries".format(agreement_count))
             else:
-                logger.debug("Not enough notaries to make quorum ({})".format(agreement_count))
+                self.logger.debug("Not enough notaries to make quorum ({})".format(agreement_count))
                 break
         if first_valid_time is None:
             return 0  # No quorum_duration
