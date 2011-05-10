@@ -3,6 +3,7 @@
 import M2Crypto
 
 import argparse
+import BaseHTTPServer
 import ConfigParser
 import logging
 import os
@@ -16,28 +17,13 @@ import threading
 import time
 
 from CertificateAuthority import CertificateAuthority
+from Server import Server
 
 from Perspectives import Checker
 from Perspectives import PerspectivesException
 from Perspectives import Service, ServiceType
 
 from TLS import Fingerprint
-
-def recvall(s, buflen=8192):
-    """Given a non-blocking ssl.SSLSocket or M2Crypto.SSL.Connection read all pending data."""
-    chunks = []
-    while True:
-        try:
-            # SSLSocket will raise ssl.SSLError if no data pending
-            #           or return 0 bytes on EOF
-            # Connection will return None
-            data = s.recv(buflen)
-        except ssl.SSLError:
-            data = None
-        if data is None or len(data) == 0:
-            break
-        chunks.append(data)
-    return "".join(chunks)
 
 
 # Not order of inherited classes here is important
@@ -49,24 +35,24 @@ class Handler(SocketServer.BaseRequestHandler):
     ca = None
     checker = None
 
+    PROTOCOL_VERSION = "HTTP/1.1"
+
+    AGENT_STRING = "SSL-MITM-1.0"
+
     def setup(self):
         self.logger = logging.getLogger("Handler")
 
     def handle(self):
         self.logger.info("Connection received.")
-        header = self.read_header()
-        (method, path, protocol) = header[0].strip().split()
-        hostname, port_str = path.split(":")
-        port = int(port_str)
+        hostname, port = self.parse_connect_command()
 
         self.logger.info("Connecting to {}:{}".format(hostname, port))
-        server_sock = self.connect_to_server(hostname, port)
-        server_cert = server_sock.get_peer_cert()
-        server_name = server_cert.get_subject()
-        self.logger.debug("Server subject is {}".format(server_name.as_text()))
+        server_error = None
+        server = Server(hostname, port)
+        self.logger.debug("Server subject is {}".format(server.subject().as_text()))
 
         self.logger.info("Checking certificate with Perspectives")
-        fingerprint = Fingerprint.from_M2Crypto_X509(server_cert)
+        fingerprint = server.get_fingerprint()
         service = Service(hostname, port)
         try:
             self.checker.check_seen_fingerprint(service, fingerprint)
@@ -75,94 +61,167 @@ class Handler(SocketServer.BaseRequestHandler):
             return
         self.logger.debug("Connection to server established")
 
-        cert_file, key_file = self.get_server_creds(hostname)
-        self.logger.debug("Responding to client.")
         try:
-            self.request.send("{} {} {}\n".format("HTTP/1.1",
-                                                  "200",
-                                                  "Connection established"))
-            self.request.send("Proxy-agent: SSL-MITM-1.0\n")
-            self.request.send("\n")
-        except Exception as e:
+            cert_file, key_file = self.get_server_creds(hostname)
+            self.logger.debug("Responding to client.")
+            self.respond(200)
+            self.logger.debug("Starting SSL with client...")
+            self.start_ssl(key_file, cert_file)
+            self.logger.debug("SSL with client successful")
+        except IOError as e:
             self.logger.error("Error responding to client: {}".format(str(e)))
             return
-        self.logger.debug("Starting SSL with client...")
-        try:
-            ssl_sock = ssl.wrap_socket(self.request,
-                                       keyfile = key_file,
-                                       certfile = cert_file,
-                                       server_side = True)
         except ssl.SSLError as e:
             self.logger.error("Error starting SSL with client: {}".format(str(e)))
             return
-        self.logger.debug("SSL with client successful")
-        self.pass_through(ssl_sock, server_sock)
+
+        if server_error:
+            # We got an error of some sort during setup with server.
+            # Instead of connecting client to server, we're going to
+            # sent the client a hunk of html describing the error.
+            pass
+        else:
+            # Good connections with client and server, just start
+            # passing through traffic.
+            self.pass_through(server)
         self.request.close()
-        server_sock.close()
+        server.close()
         self.logger.info("Done.")
 
-    def pass_through(self, client, server):
+    def send(self, msg):
+        self.request.send(msg)
+
+    def sendall(self, msg):
+        self.request.sendall(msg)
+
+    def make_nonblocking(self):
+        self.request.setblocking(False)
+
+    def respond(self, code, msg=None):
+        """Respond to client with given code.
+
+        If msg is not provided, uses default for code."""
+        msg = msg if msg is not None else \
+            BaseHTTPServer.BaseHTTPRequestHandler.responses[code]
+        self.send("{} {} {}\n".format(self.PROTOCOL_VERSION,
+                                      code,
+                                      msg))
+        self.send("Proxy-agent: {}\n".format(self.AGENT_STRING))
+        self.send("\n")
+
+    def start_ssl(self, key_file, cert_file):
+        """Start SSL with client."""
+        ssl_sock = ssl.wrap_socket(self.request,
+                                   keyfile = key_file,
+                                   certfile = cert_file,
+                                   server_side = True)
+        self.orig_request = self.request
+        self.request = ssl_sock
+
+    def pass_through(self, server):
         """Pass data back and forth between client and server"""
         self.logger.info("Entering pass_through mode")
-        def name(s):
-            if s == client:
-                return "client"
-            elif s == server:
-                return "server"
-            else:
-                raise Exception("Unknown socket {}".format(s.fileno()))
-        def out_sock(s):
-            if s == client:
-                return server
-            elif s == server:
-                return client
-            else:
-                raise Exception("Unknown socket {}".format(s.fileno()))
-        client.setblocking(False)
-        server.setblocking(False)
-        socks = [client, server]
+        self.make_nonblocking()
+        server.make_nonblocking()
+        # Mapping from sockets to instances
+        instances = {
+            self.request : self,
+            server.sock : server
+            }
+        socks = instances.keys()
+        # Mapping from instances to peers
+        peer = {
+            self : server,
+            server : self
+            }
         done = False
         while not done:
-            (read_ready, write_ready, error) = select.select(socks, [], socks)
+            (read_ready, write_ready, error) = select.select(socks,[], socks)
             if len(error) != 0:
-                self.logger.info("Got exception from {}".format(name(error[0])))
+                instance = instances[error[0]]
+                self.logger.info("Got exception from {}".format(instance))
                 break
             for s in read_ready:
-                self.logger.debug("Reading from {}".format(name(s)))
+                instance = instances[s]
+                self.logger.debug("Reading from {}".format(instance))
                 try:
-                    data = recvall(s)
+                    data = instance.recvall()
                 except IOError as e:
-                    self.logger.error("Error reading from {}: {}".format(name(s),
-                                                                    str(e)))
+                    self.logger.error("Error reading from {}: {}".format(instance,
+                                                                         str(e)))
                     done = True
                     break
-                out = out_sock(s)
+                out = peer[instance]
                 if len(data) == 0:
                     # HACK: M2Crypto.SSL.Connection seems to randomly
                     # return 0 bytes even though select says it is
                     # read ready. So ignore 0 bytes read from server
-                    if s == server:
+                    if instance == server:
                         pass
                     else:
-                        self.logger.info("Got EOF from {}".format(name(s)))
+                        self.logger.info("Got EOF from {}".format(s))
                         done = True
                         break
                 else:
                     self.logger.debug("Writing {} bytes to {}".format(len(data),
-                                                                 name(out)))
+                                                                      out))
                     out.sendall(data)
         self.logger.info("Pass through done.")
 
-    def connect_to_server(self, hostname, port):
-        """Connect to given hostname and port and return SSL.Connection
+    def read_header(self):
+        """Read and return header
 
-        We use M2Crypto.SSL.Connection here because it allows us to get
-        the server certificate without validating it (with the python
-        ssl module does not allow."""
-        context = M2Crypto.SSL.Context("sslv3")
-        s = M2Crypto.SSL.Connection(context)
-        s.connect((hostname, port))
-        return s
+        Return is (method, path, protocol, header_lines as a list of strings)"""
+        # First line is request: GET /foo HTTP/1.0
+        request = self.readline()
+        (method, path, protocol) = request.strip().split()
+        
+        # Followed by N header lines until a blank line
+        header_lines = []
+        while True:
+            line = self.readline()
+            if line.strip() == "":
+                break
+            header_lines.append(line)
+        return (method, path, protocol, header_lines)
+
+    def parse_connect_command(self):
+        """Parse a header which is expected to be a CONNECT command
+
+        Returns target_hostname and target_port."""
+        (method, path, protocol, header_lines) = self.read_header()
+        if method != "CONNECT":
+            raise IOError("Client sent unexpected command \"{}\"".format(method))
+        hostname, port_str = path.split(":")
+        port = int(port_str)
+        return hostname, port
+
+    def readline(self):
+        line = ""
+        while line.find("\n") == -1:
+            line += self.request.recv(1)
+        return line
+
+    def recvall(self, buflen=8192):
+        """Given a non-blocking socket, read all panding data.
+
+        Socket can be ssl.SSLSocket or M2Crypto.SSL.Connection."""
+        chunks = []
+        while True:
+            try:
+                # SSLSocket will raise ssl.SSLError if no data pending
+                #           or return 0 bytes on EOF
+                data = self.request.recv(buflen)
+            except ssl.SSLError:
+                data = None
+            if data is None or len(data) == 0:
+                break
+            chunks.append(data)
+        return "".join(chunks)
+
+    def __str__(self):
+        return "client at {}:{}".format(self.client_address[0],
+                                        self.client_address[1])
 
     def get_server_creds(self, hostname):
         """Return credentials for the given host"""
@@ -174,22 +233,6 @@ class Handler(SocketServer.BaseRequestHandler):
         os.close(fd)
         key.save_key(key_file, cipher=None)  # cipher=None -> save in the clear
         return cert_file, key_file
-
-    def read_header(self):
-        """Read and return header as a list of strings"""
-        header = []
-        while True:
-            line = self.readline()
-            header.append(line)
-            if line.strip() == "":
-                break
-        return header
-
-    def readline(self):
-        line = ""
-        while line.find("\n") == -1:
-            line += self.request.recv(1)
-        return line
 
 def parse_args(argv):
     """Parse our command line arguments"""
