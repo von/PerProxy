@@ -39,6 +39,17 @@ class Handler(SocketServer.BaseRequestHandler):
 
     AGENT_STRING = "SSL-MITM-1.0"
 
+    HTML_ERROR_TEMPLATE = "\n".join([
+            "<html>",
+            "<title>PerProxy Server Error: {title}</title>",
+            "<body>",
+            "<h1>PerProxy Server Error</h1>",
+            "<p>The PerProxy server encountered an error with the server:</p>",
+            "<p>{error}</p>",
+            "</body>",
+            "</html>"
+            ])
+
     def setup(self):
         self.logger = logging.getLogger("Handler")
 
@@ -46,20 +57,20 @@ class Handler(SocketServer.BaseRequestHandler):
         self.logger.info("Connection received.")
         hostname, port = self.parse_connect_command()
 
-        self.logger.info("Connecting to {}:{}".format(hostname, port))
+        # Sending errors back in response to the CONNECT command
+        # doesn't work as browsers seem to ignore response code and
+        # accompanying text.
+        # 
+        # Instead we defer reporting the error to the client until
+        # after we establish an SSL connection with the client, and
+        # then we respond to the command from the client within the
+        # proxied connection.
         server_error = None
-        server = Server(hostname, port)
-        self.logger.debug("Server subject is {}".format(server.subject().as_text()))
-
-        self.logger.info("Checking certificate with Perspectives")
-        fingerprint = server.get_fingerprint()
-        service = Service(hostname, port)
         try:
-            self.checker.check_seen_fingerprint(service, fingerprint)
-        except PerspectivesException as e:
-            self.logger.error("Perspectives check failed: {}".format(str(e)))
-            return
-        self.logger.debug("Connection to server established")
+            server = self.connect_to_server(hostname, port)
+        except Exception as e:
+            self.logger.error("Deferring handling error connecting to server: {}".format(e))
+            server_error = e
 
         try:
             cert_file, key_file = self.get_server_creds(hostname)
@@ -79,14 +90,44 @@ class Handler(SocketServer.BaseRequestHandler):
             # We got an error of some sort during setup with server.
             # Instead of connecting client to server, we're going to
             # sent the client a hunk of html describing the error.
-            pass
+            self.logger.info("Handling deferred server error: {}".format(server_error))
+            self.handle_server_error(server_error)
         else:
             # Good connections with client and server, just start
             # passing through traffic.
             self.pass_through(server)
+            server.close()
         self.request.close()
-        server.close()
         self.logger.info("Done.")
+
+    def connect_to_server(self, hostname, port):
+        """Handle connection to desired server
+
+        Handles checking of certificate.
+
+        Return Server instance."""
+        
+        self.logger.info("Connecting to {}:{}".format(hostname, port))
+        try:
+            server = Server(hostname, port)
+        except Exception as e:
+            self.logger.error("Error connecting to {}:{}: {}".format(hostname,
+                                                                     port,
+                                                                     e))
+            raise
+        self.logger.debug("Server subject is {}".format(server.subject().as_text()))                             
+
+        self.logger.info("Checking certificate with Perspectives")
+        try:
+            fingerprint = server.get_fingerprint()
+            service = Service(hostname, port)
+            self.checker.check_seen_fingerprint(service, fingerprint)
+        except PerspectivesException as e:
+            self.logger.error("Perspectives check failed: {}".format(str(e)))
+            raise
+
+        self.logger.debug("Connection to server established")
+        return server
 
     def send(self, msg):
         self.request.send(msg)
@@ -168,6 +209,27 @@ class Handler(SocketServer.BaseRequestHandler):
                     out.sendall(data)
         self.logger.info("Pass through done.")
 
+    def handle_server_error(self, server_error):
+        """Handle a error connecting to the server.
+
+        In stead of passing data back and forth, we mimic the server and
+        send back a web page describing the error."""
+        # First we read request and headers client meant to send to server
+        method, path, protocol, headers = self.read_header()
+        self.logger.debug("Client request was: {} {} {}".format(method,
+                                                                path,
+                                                                protocol))
+        # TODO: We may want to respond differently depending on information
+        #       in the headers. E.g., if the client isn't expecting HTML
+        #       then we don't send HTML (not sure what we should do).
+        self.respond(502, str(server_error))
+        values = {
+            "title" : str(server_error),
+            "error" : str(server_error),
+            }
+        self.send(self.HTML_ERROR_TEMPLATE.format(**values))
+        self.logger.debug("Error response sent.")
+        
     def read_header(self):
         """Read and return header
 
