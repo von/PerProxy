@@ -5,9 +5,9 @@ import argparse
 import logging
 import sys
 
-from Perspectives import Checker, PerspectivesException, Notaries, \
+from Perspectives import Checker, Fingerprint, \
+    PerspectivesException, Notaries, \
     Service, ServiceType
-from TLS import Fingerprint
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional

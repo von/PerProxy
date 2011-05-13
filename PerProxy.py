@@ -16,10 +16,10 @@ import time
 from CertificateAuthority import CertificateAuthority
 
 from Perspectives import Checker
+from Perspectives import Fingerprint
 from Perspectives import PerspectivesException
 from Perspectives import Service, ServiceType
 
-from TLS import Fingerprint
 
 def recvall(s, buflen=8192):
     """Given a non-blocking ssl.SSLSocket or M2Crypto.SSL.Connection read all pending data."""
