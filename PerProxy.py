@@ -6,13 +6,11 @@ import argparse
 import BaseHTTPServer
 import ConfigParser
 import logging
-import os
 import select
 import socket
 import SocketServer
 import ssl
 import sys
-import tempfile
 import threading
 import time
 
@@ -20,10 +18,10 @@ from CertificateAuthority import CertificateAuthority
 from Server import Server
 
 from Perspectives import Checker
+from Perspectives import Fingerprint
 from Perspectives import PerspectivesException
 from Perspectives import Service, ServiceType
 
-from TLS import Fingerprint
 
 
 # Not order of inherited classes here is important
@@ -285,16 +283,6 @@ class Handler(SocketServer.BaseRequestHandler):
         return "client at {}:{}".format(self.client_address[0],
                                         self.client_address[1])
 
-    def get_server_creds(self, hostname):
-        """Return credentials for the given host"""
-        cert, key = self.ca.generate_ssl_credential(hostname)
-        fd, cert_file = tempfile.mkstemp()
-        os.close(fd)
-        cert.save_pem(cert_file)
-        fd, key_file = tempfile.mkstemp()
-        os.close(fd)
-        key.save_key(key_file, cipher=None)  # cipher=None -> save in the clear
-        return cert_file, key_file
 
 def parse_args(argv):
     """Parse our command line arguments"""

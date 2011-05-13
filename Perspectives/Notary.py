@@ -15,7 +15,7 @@ from Exceptions import NotaryResponseBadSignature
 from Exceptions import NotaryResponseException
 from Exceptions import NotaryUnknownServiceException
 from Service import ServiceType
-from TLS import Fingerprint
+from Fingerprint import Fingerprint
 
 
 class Notaries(list):

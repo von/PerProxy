@@ -5,9 +5,9 @@ import argparse
 import logging
 import sys
 
-from Perspectives import Checker, PerspectivesException
-from Service import Service, ServiceType
-from TLS import Fingerprint
+from Perspectives import Checker, Fingerprint, \
+    PerspectivesException, Notaries, \
+    Service, ServiceType
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -66,26 +66,31 @@ def main(argv=None):
 
     output_handler.setLevel(args.output_level)
 
-    Checker.init_class(notaries_file = args.notaries_file)
     service = Service(args.service_hostname[0],
                       args.service_port,
                       args.service_type)
-    output.debug("Read configuration for {} notaries from configuration {}".format(len(Checker.notaries), args.notaries_file))
-    checker = Checker(service)
-    if checker.responses:
-        for response in checker.responses:
-            if args.output_xml:
-                output.info(response.xml)
-            else:
-                output.info(response)
-    else:
-        output.info("Checker did not obtain responses")
 
     if args.service_fingerprint is not None:
         output.debug("Checking provided fingerprint against responses...")
+        checker = Checker(notaries_file=args.notaries_file)
         fp = Fingerprint.from_string(args.service_fingerprint)
-        checker.check_seen_fingerprint(fp)
+        checker.check_seen_fingerprint(service, fp)
         output.debug("Check successful.")
+        responses = checker.responses
+    else:
+        notaries = Notaries.from_file(args.notaries_file)
+        output.debug("Read configuration for {} notaries from configuration {}".format(len(notaries), args.notaries_file))
+        responses = notaries.query(service, num=args.num_notaries)
+        if responses and len(responses):
+            for response in responses:
+                if args.output_xml:
+                    output.info(response.xml)
+                else:
+                    output.info(response)
+        else:
+            output.info("Failed to obtain any responses")
+
+    
     return(0)
 
 if __name__ == "__main__":
