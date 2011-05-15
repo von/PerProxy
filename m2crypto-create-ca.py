@@ -6,14 +6,6 @@ import sys
 
 from M2Crypto import EVP, m2, RSA, X509
 
-def process(arg):
-    """Print the given argument"""
-    print "Argument: {}".format(arg)
-    # Allow command-line argument to create an error
-    if arg == "error":
-        return True
-    return False
-
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
     # declaration sets it at compile time.
