@@ -5,13 +5,11 @@ import M2Crypto
 import argparse
 import ConfigParser
 import logging
-import os
 import select
 import socket
 import SocketServer
 import ssl
 import sys
-import tempfile
 import threading
 import time
 
@@ -75,7 +73,7 @@ class Handler(SocketServer.BaseRequestHandler):
             return
         self.logger.debug("Connection to server established")
 
-        cert_file, key_file = self.get_server_creds(hostname)
+        cert_file, key_file = self.ca.get_ssl_credentials(hostname)
         self.logger.debug("Responding to client.")
         try:
             self.request.send("{} {} {}\n".format("HTTP/1.1",
@@ -164,16 +162,6 @@ class Handler(SocketServer.BaseRequestHandler):
         s.connect((hostname, port))
         return s
 
-    def get_server_creds(self, hostname):
-        """Return credentials for the given host"""
-        cert, key = self.ca.generate_ssl_credential(hostname)
-        fd, cert_file = tempfile.mkstemp()
-        os.close(fd)
-        cert.save_pem(cert_file)
-        fd, key_file = tempfile.mkstemp()
-        os.close(fd)
-        key.save_key(key_file, cipher=None)  # cipher=None -> save in the clear
-        return cert_file, key_file
 
     def read_header(self):
         """Read and return header as a list of strings"""
