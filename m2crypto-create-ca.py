@@ -37,9 +37,9 @@ def main(argv=None):
                                  help="run quietly")
     parser.add_argument("-k", "--keylength", type=int, default=2048,
                         help="specify key length", metavar="length")
-    parser.add_argument("-C", "--cn", type=str, default="My CA",
+    parser.add_argument("-C", "--cn", type=str, default="PerProxy CA",
                         help="specify CommonName component", metavar="cn")
-    parser.add_argument("-O", "--org", type=str, default="My Org",
+    parser.add_argument("-O", "--org", type=str, default="PerProxy",
                         help="specify Org component", metavar="org")
     parser.add_argument("-l", "--lifetime", type=int, default=365,
                         help="specify certificate lifetime in days",
