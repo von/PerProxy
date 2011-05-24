@@ -46,28 +46,25 @@ Here is how PerProxy currently works:
 * It acts as an HTTPS proxy, receiving and parsing a CONNECT message
 from the client browser to obtain the target hostname.
 
-* It checks a local cache to see if it has an entry for what
-certificate to expect for the target host.
+* It connects to the target server.
 
-** If the cache doesn't have an entry it opens an SSL connection to the
-target host and obtains the presented certificate.
+** If the target server's certificate is in the cache, it proceeds.
 
-** It queries Perspectives notaries to validate the certificate, on
+** If the target server's certificate is not in the cache, it queries
+Perspectives notaries to validate the target server certificate. On
 success it puts the certificate into the cache.
 
 ** On failure, an error is returned to the client browser (see Note
-below).
+below) and the connection is closed.
 
-* The expected certificate is noted and a SSL conection is established
-to the target host.
-
-* The returned certificate is verified against what was previously
-verified with Perspectives. If it doesn't match, an error is thrown
-and the connection is closed.
+* A SSL conection is established back to the client and all data is
+passed through between the two.
 
 Note: All error handling is very rudimentary right now. PerProxy will
-print logs as things happen to stdout, which is currently the only way
-of telling what is going on.
+print logs as things happen to stdout and a HTML web page is returned
+to the client. The HTML will be displayed only for primary pages
+though, if the request is for an image or other element of a page, it
+likely gets swallowed by the browser.
 
 --------------------
 
