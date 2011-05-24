@@ -57,7 +57,11 @@ class Handler(SocketServer.BaseRequestHandler):
         server_error = None
         try:
             server = self.connect_to_server(hostname, port)
-        except Exception as e:
+        except PerspectivesException as e:
+            self.logger.error("Deferring handling error connecting to server: {}".format(e))
+            server_error = e
+        except Exception as e: 
+            self.logger.exception(e)
             self.logger.error("Deferring handling error connecting to server: {}".format(e))
             server_error = e
 
