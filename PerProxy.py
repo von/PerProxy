@@ -75,6 +75,8 @@ class Handler(SocketServer.BaseRequestHandler):
 
         cert_file, key_file = self.ca.get_ssl_credentials(hostname)
         self.logger.debug("Responding to client.")
+        self.logger.debug("Cert = {}".format(cert_file))
+        self.logger.debug("Key = {}".format(key_file))
         try:
             self.request.send("{} {} {}\n".format("HTTP/1.1",
                                                   "200",
