@@ -39,12 +39,12 @@ class Handler(SocketServer.BaseRequestHandler):
 
     HTML_ERROR_TEMPLATE = None
 
-    def setup(self):
-        self.logger = logging.getLogger("Handler")
-
     def handle(self):
-        self.logger.info("Connection received.")
+        logging.getLogger("main").info("Connection received.")
         hostname, port = self.parse_connect_command()
+
+        self.logger = logging.LoggerAdapter(logging.getLogger("Handler"),
+                                            { "target" : hostname })
 
         # Sending errors back in response to the CONNECT command
         # doesn't work as browsers seem to ignore response code and
@@ -356,22 +356,32 @@ def parse_args(argv):
     args = parser.parse_args(remaining_argv)
     return args
 
+def setup_logging(args):
+    """Set up logigng via logging module"""
+    # Set up out output via logging module
+    logging.getLogger().setLevel(args.output_level)
+
+    main = logging.getLogger("main")
+    main_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
+    main_handler.setFormatter(logging.Formatter("PerProxy: %(message)s"))
+    main.addHandler(main_handler)
+
+    handler = logging.getLogger("Handler")
+    handler_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
+    handler_handler.setFormatter(logging.Formatter("PerProxy:%(threadName)s:%(target)s: %(message)s"))
+    handler.addHandler(handler_handler)
+
+
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
     # declaration sets it at compile time.
     if argv is None:
         argv = sys.argv
-
-    # Set up out output via logging module
-    output = logging.getLogger()
-    output.setLevel(logging.DEBUG)
-    output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
-    output_handler.setFormatter(logging.Formatter("%(threadName)s:%(name)s: %(message)s"))
-    output.addHandler(output_handler)
-
+ 
     args = parse_args(argv)
 
-    output_handler.setLevel(args.output_level)
+    setup_logging(args)
+    output = logging.getLogger("main")
 
     output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
 
