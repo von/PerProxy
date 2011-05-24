@@ -8,6 +8,28 @@ class PolicyException(Exception):
     """Policy check failed"""
     pass
 
+class QuorumNotReached(PolicyException):
+    """Not enough notaries have seen given key"""
+    
+    def __init__(self, notaries_needed, notaries_saw_key):
+        self.notaries_needed = notaries_needed
+        self.notaries_saw_key = notaries_saw_key
+
+    def __str__(self):
+        return "Only {} out of required {} notaries have seen key".format(
+            self.notaries_saw_key, self.notaries_needed)
+
+class QuorumDurationNotReached(PolicyException):
+    """Quorum duration not reached for given key"""
+
+    def __init__(self, duration_needed, duration_achieved):
+        self.duration_needed = duration_needed
+        self.duration_achieved = duration_achieved
+
+    def __str__(self):
+        return "Quorum duration of {} shorter than required {}".format(
+            self.duration_achieved, self.duration_needed)
+
 class Policy:
     """Class for representing and implementing a Perspectives policy"""
 
@@ -32,14 +54,15 @@ class Policy:
         Raises exception on failure."""
         self.logger.debug("check({}) called with {} responses".format(fingerprint,
                                                                       len(responses)))
+        agree_now = responses.key_agreement_count(fingerprint)
+        if agree_now < self.quorum:
+            raise QuorumNotReached(self.quorum, agree_now)
         qduration = responses.quorum_duration(fingerprint,
                                               self.quorum,
                                               self.stale_limit)
         self.logger.debug("Quorum duration is {}".format(qduration))
-        if qduration == 0:
-            raise PolicyException("Given key not valid")
-        elif qduration < self.quorum_duration:
-            raise PolicyException("Certificate not valid long enough (only {} seconds)".format(qduration))
+        if qduration < self.quorum_duration:
+            raise QuorumDurationNotReached(self.quorum_duration, qduration)
         self.logger.debug("Policy check succeeded".format(qduration))
 
         

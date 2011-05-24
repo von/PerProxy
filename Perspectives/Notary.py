@@ -261,12 +261,17 @@ class NotaryResponses(list):
             return 0  # No quorum_duration
         return now - first_valid_time
 
-    def key_agreement_count(self, cert_fingerprint, time):
-        """How many notaries agree given certificate was valid at given time?"""
+    def key_agreement_count(self, cert_fingerprint, check_time=None):
+        """How many notaries agree given certificate was valid at given time?
+
+        If check_time == None, then check for last seen key."""
         count = 0
         for response in self:
             if response is not None:
-                seen_key = response.key_at_time(time)
+                if check_time is None:
+                    seen_key = response.last_key_seen()
+                else:
+                    seen_key = response.key_at_time(check_time)
                 if (seen_key is not None) and \
                         (seen_key.fingerprint == cert_fingerprint):
                     count += 1
