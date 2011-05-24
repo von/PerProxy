@@ -71,7 +71,7 @@ class Handler(SocketServer.BaseRequestHandler):
             server_error = e
 
         try:
-            cert_file, key_file = self.get_server_creds(hostname)
+            cert_file, key_file = self.ca.get_ssl_credentials(hostname)
             self.logger.debug("Responding to client.")
             self.respond(200)
             self.logger.debug("Starting SSL with client...")
