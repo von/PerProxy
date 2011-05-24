@@ -2,7 +2,7 @@
 
 import M2Crypto
 
-from TLS import Fingerprint
+from Perspectives import Fingerprint
 
 class Server:
     """Connection to PerProxy server"""
