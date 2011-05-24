@@ -37,16 +37,7 @@ class Handler(SocketServer.BaseRequestHandler):
 
     AGENT_STRING = "SSL-MITM-1.0"
 
-    HTML_ERROR_TEMPLATE = "\n".join([
-            "<html>",
-            "<title>PerProxy Server Error: {title}</title>",
-            "<body>",
-            "<h1>PerProxy Server Error</h1>",
-            "<p>The PerProxy server encountered an error with the server:</p>",
-            "<p>{error}</p>",
-            "</body>",
-            "</html>"
-            ])
+    HTML_ERROR_TEMPLATE = None
 
     def setup(self):
         self.logger = logging.getLogger("Handler")
@@ -300,6 +291,7 @@ def parse_args(argv):
         "output_level" : logging.INFO,
         "ca_cert_file" : "./ca-cert.crt",
         "ca_key_file" : "./ca-key.pem",
+        "error_template" : "./error_template.html",
         "notaries_file" : "./http_notary_list.txt",
         "proxy_hostname" : "localhost",
         "proxy_port" : 8080,
@@ -312,7 +304,8 @@ def parse_args(argv):
             (("CA", "KeyFile"), "ca_key_file"),
             (("Perspectives", "NotaryFile"), "notaries_file"),
             (("Proxy", "Hostname"), "proxy_hostname"),
-            (("Proxy", "Port"), "proxy_port")
+            (("Proxy", "Port"), "proxy_port"),
+            (("Templates", "Error"), "error_template"),
             ]
         config = ConfigParser.SafeConfigParser()
         config.read([args.conf_file])
@@ -381,6 +374,10 @@ def main(argv=None):
     Handler.ca = CertificateAuthority.from_file(args.ca_cert_file,
                                                 args.ca_key_file)
     Handler.checker = Checker(notaries_file = args.notaries_file)
+
+    output.debug("Loading error template from {}".format(args.error_template))
+    with open(args.error_template) as f:
+        Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
 
     output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
                                                                args.proxy_port))
