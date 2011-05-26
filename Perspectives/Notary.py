@@ -2,6 +2,7 @@
 
 import asyncore
 import base64
+import httplib
 import logging
 import M2Crypto
 import random
@@ -88,6 +89,8 @@ class Notaries(list):
                 notary.verify_response(response, service)
                 self.logger.debug("Response signature verified")
                 responses.append(response)
+            except httplib.BadStatusLine as e:
+                self.logger.error("Failed to parse response from {}, bad status: {}".format(notary, e))
             except NotaryException as e:
                 self.logger.error("Error validating response from {}: {}".format(notary, e))
         return responses
