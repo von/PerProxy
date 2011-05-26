@@ -1,5 +1,7 @@
 """Classes for connections to PerProxy client and server"""
 
+import ssl
+
 import M2Crypto
 
 from Perspectives import Fingerprint
