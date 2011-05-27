@@ -1,4 +1,4 @@
-"""Classes for connections to PerProxy client and server"""
+"""Server: class wrapping connection to target HTTPS server from PerProxy"""
 
 import ssl
 
@@ -7,13 +7,13 @@ import M2Crypto
 from Perspectives import Fingerprint
 
 class Server:
-    """Connection to PerProxy server"""
+    """Connection to target HTTPS server"""
 
     def __init__(self, hostname, port):
         """Connect to given hostname and port via SSL"""
         # We use M2Crypto.SSL.Connection here because it allows us to get
-        # the server certificate without validating it (with the python
-        # ssl module does not allow.
+        # the server certificate without validating it (which the python
+        # ssl module does not allow).
         self.context = M2Crypto.SSL.Context("sslv3")
         self.sock = M2Crypto.SSL.Connection(self.context)
         self.sock.connect((hostname, port))
