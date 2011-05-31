@@ -1,5 +1,6 @@
 """Server: class wrapping connection to target HTTPS server from PerProxy"""
 
+import logging
 import ssl
 
 import M2Crypto
@@ -11,6 +12,9 @@ class Server:
 
     def __init__(self, hostname, port):
         """Connect to given hostname and port via SSL"""
+        self.logger = logging.LoggerAdapter(
+            logging.getLogger(self.__class__.__name__),
+            { "target" : hostname })
         # We use M2Crypto.SSL.Connection here because it allows us to get
         # the server certificate without validating it (which the python
         # ssl module does not allow).

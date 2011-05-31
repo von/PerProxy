@@ -371,6 +371,10 @@ def setup_logging(args):
     handler_handler.setFormatter(logging.Formatter("PerProxy:%(threadName)s:%(target)s: %(message)s"))
     handler.addHandler(handler_handler)
 
+    handler = logging.getLogger("Server")
+    handler_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
+    handler_handler.setFormatter(logging.Formatter("PerProxy:%(threadName)s:%(target)s: %(message)s"))
+    handler.addHandler(handler_handler)
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
