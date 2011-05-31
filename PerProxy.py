@@ -187,21 +187,19 @@ class Handler(SocketServer.BaseRequestHandler):
                                                                          str(e)))
                     done = True
                     break
-                out = peer[instance]
+                if data is None:
+                    # M2Crypto.SSL.Connection returns None sometimes.
+                    # This does not indicate an EOF. Ignore.
+                    self.logger.debug("Ignoring read of None from {}".format(instance))
+                    continue
                 if len(data) == 0:
-                    # HACK: M2Crypto.SSL.Connection seems to randomly
-                    # return 0 bytes even though select says it is
-                    # read ready. So ignore 0 bytes read from server
-                    if instance == server:
-                        pass
-                    else:
-                        self.logger.info("Got EOF from {}".format(s))
-                        done = True
-                        break
-                else:
-                    self.logger.debug("Writing {} bytes to {}".format(len(data),
-                                                                      out))
-                    out.sendall(data)
+                    self.logger.info("Got EOF from {}".format(instance))
+                    done = True
+                    break
+                out = peer[instance]
+                self.logger.debug("Writing {} bytes to {}".format(len(data),
+                                                                  out))
+                out.sendall(data)
         self.logger.info("Pass through done.")
 
     def handle_server_error(self, server_error):
