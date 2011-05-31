@@ -20,7 +20,7 @@ class ResponseBuffer(StringIO):
     def makefile(self, *args, **kw):
         return self
 
-class HTTP_dispatcher(asyncore.dispatcher):
+class HTTP_dispatcher(asyncore.dispatcher_with_send):
 
     def __init__(self, url, map=None):
         self.url = url
@@ -32,8 +32,7 @@ class HTTP_dispatcher(asyncore.dispatcher):
         else:
             hostname, port_str = self.parsed_url.netloc.split(":")
             port = int(port_str)
-        asyncore.dispatcher.__init__(self, map=map)
-        self.write_buffer = 'GET %s HTTP/1.0\r\n\r\n' % self.url
+        asyncore.dispatcher_with_send.__init__(self, map=map)
         self.read_buffer = ResponseBuffer()
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         address = (hostname, port)
@@ -41,30 +40,19 @@ class HTTP_dispatcher(asyncore.dispatcher):
         self.connect(address)
 
     def handle_connect(self):
-        self.logger.debug('handle_connect()')
+        self.logger.debug("Connected. Sending GET command.")
+        self.send("GET {} HTTP/1.0\r\n\r\n".format(self.url))
 
     def handle_close(self):
-        self.logger.debug('handle_close()')
+        self.logger.debug("Closed.")
         self.close()
-
-    def writable(self):
-        is_writable = (len(self.write_buffer) > 0)
-        if is_writable:
-            self.logger.debug('writable() -> %s', is_writable)
-        return is_writable
     
     def readable(self):
-        self.logger.debug('readable() -> True')
         return True
-
-    def handle_write(self):
-        sent = self.send(self.write_buffer)
-        self.logger.debug('handle_write() -> "%s"', self.write_buffer[:sent])
-        self.write_buffer = self.write_buffer[sent:]
 
     def handle_read(self):
         data = self.recv(8192)
-        self.logger.debug('handle_read() -> %d bytes', len(data))
+        self.logger.debug("Read %d bytes", len(data))
         self.read_buffer.write(data)
 
     def get_response(self):
