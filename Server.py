@@ -1,5 +1,6 @@
-"""Classes for connections to PerProxy client and server"""
+"""Server: class wrapping connection to target HTTPS server from PerProxy"""
 
+import logging
 import ssl
 
 import M2Crypto
@@ -7,13 +8,16 @@ import M2Crypto
 from Perspectives import Fingerprint
 
 class Server:
-    """Connection to PerProxy server"""
+    """Connection to target HTTPS server"""
 
     def __init__(self, hostname, port):
         """Connect to given hostname and port via SSL"""
+        self.logger = logging.LoggerAdapter(
+            logging.getLogger(self.__class__.__name__),
+            { "target" : hostname })
         # We use M2Crypto.SSL.Connection here because it allows us to get
-        # the server certificate without validating it (with the python
-        # ssl module does not allow.
+        # the server certificate without validating it (which the python
+        # ssl module does not allow).
         self.context = M2Crypto.SSL.Context("sslv3")
         self.sock = M2Crypto.SSL.Connection(self.context)
         self.sock.connect((hostname, port))
@@ -46,21 +50,24 @@ class Server:
         self.sock.sendall(msg)
 
     def recvall(self, buflen=8192):
-        """Given a non-blocking socket, read all panding data.
+        """Read all panding data.
 
-        Socket can be ssl.SSLSocket or M2Crypto.SSL.Connection."""
+        M2Crypto.SSL.Connection seems to randomly return None
+        sometimes after claiming it has data to read. This does not indicate
+        EOF. In this case, this function will return None and the caller
+        should not treat as an EOF."""
         chunks = []
         while True:
-            try:
-                # SSLSocket will raise ssl.SSLError if no data pending
-                #           or return 0 bytes on EOF
-                # M2Crypto.SSL.Connection will return None
-                data = self.sock.recv(buflen)
-            except ssl.SSLError:
-                data = None
-            if data is None or len(data) == 0:
+            data = self.sock.recv(buflen)
+            # I think len(data) == 0 means EOF and data == None is meaningless.
+            if data is None:
+                break
+            if len(data) == 0:
                 break
             chunks.append(data)
+        if data is None and len(chunks) == 0:
+            # Ignorable None read
+            return None
         return "".join(chunks)
 
     def __str__(self):
