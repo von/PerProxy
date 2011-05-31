@@ -16,12 +16,17 @@ def main(argv=None):
         argv = sys.argv
 
     # Set up out output via logging module
-    output = logging.getLogger()
+    output = logging.getLogger("main")
     output.setLevel(logging.DEBUG)
     output_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
     # Set up formatter to just print message without preamble
     output_handler.setFormatter(logging.Formatter("%(message)s"))
     output.addHandler(output_handler)
+
+    # Set up logging for Perspectives code as well
+    perspectives_logger = logging.getLogger("Perspectives")
+    perspectives_logger.setLevel(logging.DEBUG)
+    perspectives_logger.addHandler(output_handler)
 
     # Argument parsing
     parser = argparse.ArgumentParser(
