@@ -52,13 +52,19 @@ class Server:
     def recvall(self, buflen=8192):
         """Read all panding data.
 
+        On EOF, returns a 0-length string.
+
         M2Crypto.SSL.Connection seems to randomly return None
         sometimes after claiming it has data to read. This does not indicate
         EOF. In this case, this function will return None and the caller
         should not treat as an EOF."""
         chunks = []
         while True:
-            data = self.sock.recv(buflen)
+            try:
+                data = self.sock.recv(buflen)
+            except Exception as e:
+                self.logger.warning("Got error reading: {}".format(str(e)))
+                return ""  # Treat as EOF
             # I think len(data) == 0 means EOF and data == None is meaningless.
             if data is None:
                 break
