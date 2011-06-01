@@ -2,6 +2,8 @@
 
 import binascii
 
+from Exceptions import FingerprintException
+
 class Fingerprint:
     """Fingerprint from certificate"""
     
@@ -19,7 +21,11 @@ class Fingerprint:
     def from_M2Crypto_X509(cls, cert):
         """Create Fingerprint from M2Crypto.X509.X509 instance."""
         # Data will be hex string without colons
-        data = binascii.a2b_hex(cert.get_fingerprint())
+        fingerprint = cert.get_fingerprint()
+        try:
+            data = binascii.a2b_hex(fingerprint)
+        except Exception as e:
+            raise FingerprintException("Error parsing fingerprint \"{}\": {}".format(fingerprint, str(e)))
         return cls(data)
 
     def __str__(self, sep=":"):
