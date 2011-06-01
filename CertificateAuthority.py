@@ -2,6 +2,8 @@
 
 from M2Crypto import EVP, m2, RSA, X509
 from threading import Lock
+import os
+import tempfile
 import time
 
 class CertificateAuthority:
@@ -32,6 +34,22 @@ class CertificateAuthority:
         cert = X509.load_cert(cert_file)
         key = EVP.load_key(key_file)
         return cls(cert, key)
+
+    def get_ssl_credentials(self,
+                            hostname,
+                            lifetime=24*60*60,
+                            sign_hash="sha1"):
+        """Get the SSL credentials for mimicing the given host in files."""
+        cert, key = self.generate_ssl_credential(hostname,
+                                                 lifetime=lifetime,
+                                                 sign_hash=sign_hash)
+        fd, cert_file = tempfile.mkstemp()
+        os.close(fd)
+        cert.save_pem(cert_file)
+        fd, key_file = tempfile.mkstemp()
+        os.close(fd)
+        key.save_key(key_file, cipher=None)  # cipher=None -> save in the clear
+        return cert_file, key_file
 
     def generate_ssl_credential(self,
                                 hostname,

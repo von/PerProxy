@@ -8,7 +8,6 @@ from Exceptions import PerspectivesException
 from Notary import Notaries
 from Policy import Policy, PolicyException
 from ServiceCache import ServiceCache
-from TLS import Certificate
 
 ######################################################################
 #

@@ -2,7 +2,7 @@
 
 import logging
 
-from TLS import Fingerprint
+from Fingerprint import Fingerprint
 
 def now():
     """Return current time in seconds as integer"""

@@ -1,6 +1,8 @@
 """Class for representing Perspective Notaries"""
 
+import asyncore
 import base64
+import httplib
 import logging
 import M2Crypto
 import random
@@ -15,7 +17,8 @@ from Exceptions import NotaryResponseBadSignature
 from Exceptions import NotaryResponseException
 from Exceptions import NotaryUnknownServiceException
 from Service import ServiceType
-from TLS import Fingerprint
+from Fingerprint import Fingerprint
+from HTTP_dispatcher import HTTP_dispatcher
 
 
 class Notaries(list):
@@ -66,18 +69,30 @@ class Notaries(list):
                 raise ValueError("Too many notaries requested ({} > {})".format(num, len(self)))
             to_query = random.sample(self, num)
         responses = NotaryResponses()
+        dispatchers = []
+        # Use own map here for thread safety
+        map = {}
         for notary in to_query:
             self.logger.debug("Querying {} about {}...".format(notary, service))
+            dispatchers.append((notary,
+                                HTTP_dispatcher(notary.get_url(service),
+                                                map=map)))
+        self.logger.debug("Calling asyncore.loop()")
+        asyncore.loop(map=map)
+        self.logger.debug("asyncore.loop() done.")
+        for notary, dispatcher in dispatchers:
             try:
-                response = notary.query(service)
-                self.logger.debug("Got response from {}".format(notary))
+                response = dispatcher.get_response()
+                xml = response.read()
+                response = NotaryResponse(xml)
+                self.logger.debug("Validating response from {}".format(notary))
                 notary.verify_response(response, service)
                 self.logger.debug("Response signature verified")
                 responses.append(response)
-            except NotaryUnknownServiceException as e:
-                self.logger.debug("{} knows nothing about {}".format(notary, service))
+            except httplib.BadStatusLine as e:
+                self.logger.error("Failed to parse response from {}, bad status: {}".format(notary, e))
             except NotaryException as e:
-                self.logger.debug("No response from {}: {}".format(notary, e))
+                self.logger.error("Error validating response from {}: {}".format(notary, e))
         return responses
 
     def find_notary(self, hostname, port=None):
@@ -114,7 +129,7 @@ class Notary:
         """Query notary regarding given service, returning NotaryResponse
 
         type may be with numeric value or 'https'"""
-        url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service.hostname, service.port, service.type)
+        url = self.get_url(service)
         try:
             stream = urllib.urlopen(url)
         except IOError as e:
@@ -126,6 +141,11 @@ class Notary:
         response = "".join(stream.readlines())
         stream.close()
         return NotaryResponse(response)
+
+    def get_url(self, service):
+        """Return the URL to use to query for the given service"""
+        url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service.hostname, service.port, service.type)
+        return url
 
     @classmethod
     def from_stream(cls, stream):
@@ -261,12 +281,17 @@ class NotaryResponses(list):
             return 0  # No quorum_duration
         return now - first_valid_time
 
-    def key_agreement_count(self, cert_fingerprint, time):
-        """How many notaries agree given certificate was valid at given time?"""
+    def key_agreement_count(self, cert_fingerprint, check_time=None):
+        """How many notaries agree given certificate was valid at given time?
+
+        If check_time == None, then check for last seen key."""
         count = 0
         for response in self:
             if response is not None:
-                seen_key = response.key_at_time(time)
+                if check_time is None:
+                    seen_key = response.last_key_seen()
+                else:
+                    seen_key = response.key_at_time(check_time)
                 if (seen_key is not None) and \
                         (seen_key.fingerprint == cert_fingerprint):
                     count += 1
