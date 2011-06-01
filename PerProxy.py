@@ -397,6 +397,10 @@ def main(argv=None):
     with open(args.error_template) as f:
         Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
 
+    # Per M2Crypto FAQ
+    output.debug("Initializing M2Crypto threading")
+    M2Crypto.threading.init()
+
     output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
                                                                args.proxy_port))
     server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
@@ -409,7 +413,13 @@ def main(argv=None):
         try:
             time.sleep(100)
         except KeyboardInterrupt as e:
-            return(0)
+            output.info("Caught keyboard interrupt.")
+            break
+
+    output.debug("Cleaning up.")
+    M2Crypto.threading.cleanup()
+    output.debug("Exiting.")
+    return(0)
 
 if __name__ == '__main__':
     sys.exit(main())
