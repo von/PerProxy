@@ -3,6 +3,10 @@
 class PerspectivesException(Exception):
     pass
 
+class FingerprintException(PerspectivesException):
+    """Exception related to a server fingerprint"""
+    pass
+
 class NotaryException(PerspectivesException):
     """Exception related to a Notary"""
     pass

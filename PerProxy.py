@@ -5,6 +5,7 @@ import M2Crypto
 import argparse
 import BaseHTTPServer
 import ConfigParser
+import errno
 import logging
 import select
 import socket
@@ -60,6 +61,13 @@ class Handler(SocketServer.BaseRequestHandler):
         except PerspectivesException as e:
             self.logger.error("Deferring handling error connecting to server: {}".format(e))
             server_error = e
+        except socket.gaierror as e:
+            server_error = "Unknown host \"{}\"".format(hostname)
+        except socket.error as e:
+            if e.errno == errno.ECONNREFUSED:
+                server_error = "Connection to {} refused.".format(hostname)
+            else:
+                server_error = e
         except Exception as e: 
             self.logger.exception(e)
             self.logger.error("Deferring handling error connecting to server: {}".format(e))
@@ -204,6 +212,8 @@ class Handler(SocketServer.BaseRequestHandler):
 
     def handle_server_error(self, server_error):
         """Handle a error connecting to the server.
+        
+        server_error can be an Exception or a string.
 
         In stead of passing data back and forth, we mimic the server and
         send back a web page describing the error."""
@@ -397,6 +407,10 @@ def main(argv=None):
     with open(args.error_template) as f:
         Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
 
+    # Per M2Crypto FAQ
+    output.debug("Initializing M2Crypto threading")
+    M2Crypto.threading.init()
+
     output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
                                                                args.proxy_port))
     server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
@@ -409,7 +423,13 @@ def main(argv=None):
         try:
             time.sleep(100)
         except KeyboardInterrupt as e:
-            return(0)
+            output.info("Caught keyboard interrupt.")
+            break
+
+    output.debug("Cleaning up.")
+    M2Crypto.threading.cleanup()
+    output.debug("Exiting.")
+    return(0)
 
 if __name__ == '__main__':
     sys.exit(main())
