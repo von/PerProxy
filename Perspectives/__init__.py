@@ -12,3 +12,8 @@ from Notary import NotaryResponse, NotaryResponses
 from Notary import NotaryResponseBadSignature
 from Notary import ServiceKey
 from Service import Service, ServiceType
+
+# Avoid warnings about lack of defined handlers
+# http://docs.python.org/howto/logging.html#library-config
+import logging
+logging.getLogger("Perspectives").addHandler(logging.NullHandler())
