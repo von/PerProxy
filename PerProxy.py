@@ -7,6 +7,8 @@ import BaseHTTPServer
 import ConfigParser
 import errno
 import logging
+import logging.config
+import os.path
 import select
 import socket
 import SocketServer
@@ -302,10 +304,10 @@ def parse_args(argv):
                         help="Specify config file", metavar="FILE")
     args, remaining_argv = conf_parser.parse_known_args(argv[1:])
     defaults = {
-        "output_level" : logging.INFO,
         "ca_cert_file" : "./ca-cert.crt",
         "ca_key_file" : "./ca-key.pem",
         "error_template" : "./error_template.html",
+        "logging_config" : "./logging.config",
         "notaries_file" : "./http_notary_list.txt",
         "proxy_hostname" : "localhost",
         "proxy_port" : 8080,
@@ -316,6 +318,7 @@ def parse_args(argv):
             # ((section, option), option)
             (("CA", "CertFile"), "ca_cert_file"),
             (("CA", "KeyFile"), "ca_key_file"),
+            (("Logging", "Config"), "logging_config"),
             (("Perspectives", "NotaryFile"), "notaries_file"),
             (("Proxy", "Hostname"), "proxy_hostname"),
             (("Proxy", "Port"), "proxy_port"),
@@ -339,16 +342,6 @@ def parse_args(argv):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     parser.set_defaults(**defaults)
-    # Only allow one of debug/quiet mode
-    verbosity_group = parser.add_mutually_exclusive_group()
-    verbosity_group.add_argument("-d", "--debug",
-                                 action='store_const', const=logging.DEBUG,
-                                 dest="output_level", 
-                                 help="print debugging")
-    verbosity_group.add_argument("-q", "--quiet",
-                                 action="store_const", const=logging.WARNING,
-                                 dest="output_level",
-                                 help="run quietly")
     parser.add_argument("-C", "--ca-cert-file",
                         type=str, default="./ca-cert.crt",
                         help="specify CA cert file", metavar="filename")
@@ -366,27 +359,12 @@ def parse_args(argv):
 
 def setup_logging(args):
     """Set up logigng via logging module"""
-    # Set up out output via logging module
-    logging.getLogger().setLevel(args.output_level)
-
-    main = logging.getLogger("main")
-    main_handler = logging.StreamHandler(sys.stdout)  # Default is sys.stderr
-    main_handler.setFormatter(logging.Formatter("PerProxy: %(message)s"))
-    main.addHandler(main_handler)
-
-    # Handlers we configure to display threadname
-    for h in [ "Perspectives" ]:
-        handler = logging.getLogger(h)
-        handler_handler = logging.StreamHandler(sys.stdout)
-        handler_handler.setFormatter(logging.Formatter("PerProxy:%(threadName)s: %(message)s"))
-        handler.addHandler(handler_handler)
-
-    # Handlers we configure to display threadname and target
-    for h in [ "Handler", "Server" ]:
-        handler = logging.getLogger(h)
-        handler_handler = logging.StreamHandler(sys.stdout)
-        handler_handler.setFormatter(logging.Formatter("PerProxy:%(threadName)s:%(target)s: %(message)s"))
-        handler.addHandler(handler_handler)
+    if not os.path.exists(args.logging_config):
+        raise ValueError("Logging configuration file {} does not exist".format(args.logging_config))
+    try:
+        logging.config.fileConfig(args.logging_config)
+    except ConfigParser.Error as e:
+        raise Exception("Error parsing logging configuration file {}: {}".format(args.logging_config, str(e)))
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -396,7 +374,12 @@ def main(argv=None):
  
     args = parse_args(argv)
 
-    setup_logging(args)
+    try:
+        setup_logging(args)
+    except Exception as e:
+        print str(e)
+        return(1)
+
     output = logging.getLogger("main")
 
     output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
