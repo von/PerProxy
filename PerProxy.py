@@ -43,10 +43,12 @@ class Handler(SocketServer.BaseRequestHandler):
     HTML_ERROR_TEMPLATE = None
 
     def handle(self):
-        logging.getLogger("main").info("Connection received.")
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info("Connection received.")
+        
         hostname, port = self.parse_connect_command()
-
-        self.logger = logging.LoggerAdapter(logging.getLogger("Handler"),
+        self.logger.info("Target is {}:{}".format(hostname, port))
+        self.logger = logging.LoggerAdapter(self.logger,
                                             { "target" : hostname })
 
         # Sending errors back in response to the CONNECT command
