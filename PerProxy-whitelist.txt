@@ -1,0 +1,3 @@
+# Whitelist for PerProxy
+# Each line contains one Unix shell-style regex
+
