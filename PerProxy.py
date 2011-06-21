@@ -384,6 +384,9 @@ def main(argv=None):
 
     output = logging.getLogger("main")
 
+    if args.conf_file:
+        output.debug("Using configuration from {}".format(args.conf_file))
+
     output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
 
     output.debug("Loading CA from {} and {}".format(args.ca_cert_file,
