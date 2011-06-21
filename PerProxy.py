@@ -358,16 +358,16 @@ def parse_args(argv):
         )
     parser.set_defaults(**defaults)
     parser.add_argument("-C", "--ca-cert-file",
-                        type=str, default="./ca-cert.crt",
+                        type=str,
                         help="specify CA cert file", metavar="filename")
     parser.add_argument("-K", "--ca-key-file",
-                        type=str, default="./ca-key.pem",
+                        type=str,
                         help="specify CA key file", metavar="filename")
     parser.add_argument("-N", "--notaries-file",
-                        type=str, default="./http_notary_list.txt",
+                        type=str,
                         help="specify notaries file", metavar="filename")
     parser.add_argument("-p", "--port", dest="proxy_port",
-                        type=int, default=8080,
+                        type=int,
                         help="specify service port", metavar="port")
     parser.add_argument("-w", "--whitelist", dest="whitelist_filename",
                         type=str, help="specify whitelist file",
@@ -399,6 +399,9 @@ def main(argv=None):
         return(1)
 
     output = logging.getLogger("main")
+
+    if args.conf_file:
+        output.debug("Using configuration from {}".format(args.conf_file))
 
     output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
 
