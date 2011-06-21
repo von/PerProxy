@@ -19,6 +19,7 @@ import time
 
 from CertificateAuthority import CertificateAuthority
 from Server import Server
+from WhiteList import WhiteList
 
 from Perspectives import Checker
 from Perspectives import Fingerprint
@@ -35,6 +36,7 @@ class Handler(SocketServer.BaseRequestHandler):
 
     ca = None
     checker = None
+    whitelist = None
 
     PROTOCOL_VERSION = "HTTP/1.1"
 
@@ -123,18 +125,27 @@ class Handler(SocketServer.BaseRequestHandler):
                                                                      e))
             raise
         self.logger.debug("Server subject is {}".format(server.subject().as_text()))                             
+        self.check_server(server)
+        
+        self.logger.debug("Connection to server established")
+        return server
+
+    def check_server(self, server):
+        """Do checks on server."""
+        if self.whitelist:
+            self.logger.debug("Checking whitelist for {}".format(server.hostname))
+            if self.whitelist.contains(server.hostname):
+                self.logger.info("Server {} is on whitelist.".format(server.hostname))
+                return
 
         self.logger.info("Checking certificate with Perspectives")
         try:
             fingerprint = server.get_fingerprint()
-            service = Service(hostname, port)
+            service = Service(server.hostname, server.port)
             self.checker.check_seen_fingerprint(service, fingerprint)
         except PerspectivesException as e:
             self.logger.error("Perspectives check failed: {}".format(str(e)))
             raise
-
-        self.logger.debug("Connection to server established")
-        return server
 
     def send(self, msg):
         self.request.send(msg)
@@ -313,6 +324,7 @@ def parse_args(argv):
         "notaries_file" : "./http_notary_list.txt",
         "proxy_hostname" : "localhost",
         "proxy_port" : 8080,
+        "whitelist_filename" : None,
         }
     if args.conf_file:
         # Mappings from configuraition file to options
@@ -325,6 +337,7 @@ def parse_args(argv):
             (("Proxy", "Hostname"), "proxy_hostname"),
             (("Proxy", "Port"), "proxy_port"),
             (("Templates", "Error"), "error_template"),
+            (("Whitelist", "Filename"), "whitelist_filename"),
             ]
         config = ConfigParser.SafeConfigParser()
         config.read([args.conf_file])
@@ -356,6 +369,9 @@ def parse_args(argv):
     parser.add_argument("-p", "--port", dest="proxy_port",
                         type=int,
                         help="specify service port", metavar="port")
+    parser.add_argument("-w", "--whitelist", dest="whitelist_filename",
+                        type=str, help="specify whitelist file",
+                        metavar="filename")
     args = parser.parse_args(remaining_argv)
     return args
 
@@ -394,6 +410,11 @@ def main(argv=None):
     Handler.ca = CertificateAuthority.from_file(args.ca_cert_file,
                                                 args.ca_key_file)
     Handler.checker = Checker(notaries_file = args.notaries_file)
+
+    if args.whitelist_filename is not None:
+        output.debug("Loading whitelist from {}".format(args.whitelist_filename))
+        wl = WhiteList.from_file(args.whitelist_filename)
+        Handler.whitelist = wl
 
     output.debug("Loading error template from {}".format(args.error_template))
     with open(args.error_template) as f:
