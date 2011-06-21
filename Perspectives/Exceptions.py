@@ -11,7 +11,7 @@ class NotaryException(PerspectivesException):
     """Exception related to a Notary"""
     pass
 
-class NotaryResponseException(PerspectivesException):
+class NotaryResponseException(NotaryException):
     """Exception related to NotaryResponse"""
     pass
 
