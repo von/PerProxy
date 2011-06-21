@@ -91,8 +91,13 @@ class Notaries(list):
                 responses.append(response)
             except httplib.BadStatusLine as e:
                 self.logger.error("Failed to parse response from {}, bad status: {}".format(notary, e))
+                responses.append(None)
             except NotaryException as e:
                 self.logger.error("Error validating response from {}: {}".format(notary, e))
+                responses.append(None)
+            except Exception as e:
+                self.logger.error("Unknown error handling response from {}: {}".format(notary, e))
+                responses.append(None)
         return responses
 
     def find_notary(self, hostname, port=None):
