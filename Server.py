@@ -44,10 +44,18 @@ class Server:
         # XXX Need to clean up self.context?
 
     def send(self, msg):
-        self.sock.send(msg)
+        try:
+            self.sock.send(msg)
+        except IOError as e:
+            self.logger.warn("Error sending to {}: {}".format(self.hostname,
+                                                              str(e)))
 
     def sendall(self, msg):
-        self.sock.sendall(msg)
+        try:
+            self.sock.sendall(msg)
+        except IOError as e:
+            self.logger.warn("Error sending to {}: {}".format(self.hostname,
+                                                              str(e)))
 
     def recvall(self, buflen=8192):
         """Read all panding data.
