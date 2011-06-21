@@ -11,15 +11,17 @@ WhiteListElement = collections.namedtuple("WhiteListElement",
 class WhiteList(list):
     """White listed services"""
     
-    logger = logging.getLogger("WhiteListParser")
-
     comment_re = re.compile("^#")
     blank_line_re = re.compile("^$")
+
+    def __init__(self):
+        self.logger = logging.getLogger("WhiteList")
 
     @classmethod
     def from_file(cls, filename):
         """Parse a file, returning a WhiteList instance"""
         wl = WhiteList()
+        logger = logging.getLogger("WhiteList")
         with open(filename) as f:
             for line in f:
                 line = line.strip()
@@ -27,7 +29,7 @@ class WhiteList(list):
                     continue
                 if cls.comment_re.match(line) is not None:
                     continue
-                cls.logger.debug("Adding to whitelist: " + line)
+                logger.debug("Adding to whitelist: " + line)
                 element = WhiteListElement(line,
                                            re.compile(fnmatch.translate(line)))
                 wl.append(element)
@@ -37,7 +39,8 @@ class WhiteList(list):
         """Is the given server_name whitelisted?"""
         for element in self:
             if element.re.match(server_name):
-                self.logger.debug("Server {} matches {}".format(server_name,
-                                                                element.string))
+                self.logger.debug(
+                    "Server {} matches whitelist element: {}".format(server_name,
+                                                                     element.string))
                 return True
         return False
