@@ -250,7 +250,8 @@ class NotaryResponses(list):
         # time that is not older than stale_limit.
         now = int(time.time())
         stale_time_cutoff = now - stale_limit
-        last_seen_key_times = [r.last_key_seen().last_timestamp() for r in self]
+        valid_responses = [r for r in self if r is not None]
+        last_seen_key_times = [r.last_key_seen().last_timestamp() for r in valid_responses]
         non_stale_response_times = filter(lambda t: t > stale_time_cutoff,
                                           last_seen_key_times)
         if len(non_stale_response_times) == 0:
