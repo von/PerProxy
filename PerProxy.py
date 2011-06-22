@@ -424,8 +424,8 @@ def main(argv=None):
     output.debug("Initializing M2Crypto threading")
     M2Crypto.threading.init()
 
-    output.info("Starting SSL MITM proxy on {} port {}".format("localhost",
-                                                               args.proxy_port))
+    output.info("Starting proxy on {} port {}".format(args.proxy_hostname,
+                                                      args.proxy_port))
     server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.setDaemon(True)
