@@ -43,6 +43,10 @@ class Server:
         self.sock.close()
         # XXX Need to clean up self.context?
 
+        # XXX From M2Crypto docs: If there were errors in this
+        # connection, call clear() rather than close() to end it, so
+        # that bad sessions will be cleared from cache.
+
     def send(self, msg):
         try:
             self.sock.send(msg)
