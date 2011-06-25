@@ -19,7 +19,11 @@ class Server:
         # the server certificate without validating it (which the python
         # ssl module does not allow).
         self.context = M2Crypto.SSL.Context("sslv3")
+        self.context.set_verify(0, depth = 0)
         self.sock = M2Crypto.SSL.Connection(self.context)
+        # Disable checking of server certificates
+        # Also disables client checking (which is None begin with)
+        self.sock.set_post_connection_check_callback(None)
         self.sock.connect((hostname, port))
         self.hostname = hostname
         self.port = port
