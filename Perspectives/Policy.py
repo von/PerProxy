@@ -16,7 +16,7 @@ class QuorumNotReached(PolicyException):
         self.notaries_saw_key = notaries_saw_key
 
     def __str__(self):
-        return "Only {} out of required {} notaries have seen key".format(
+        return "Only %s out of required %s notaries have seen key" % (
             self.notaries_saw_key, self.notaries_needed)
 
 class QuorumDurationNotReached(PolicyException):
@@ -27,7 +27,7 @@ class QuorumDurationNotReached(PolicyException):
         self.duration_achieved = duration_achieved
 
     def __str__(self):
-        return "Quorum duration of {} shorter than required {}".format(
+        return "Quorum duration of %s shorter than required %s" % (
             self.duration_achieved, self.duration_needed)
 
 class Policy:
@@ -52,7 +52,7 @@ class Policy:
         time is an integer expressing seconds since 1970 (None == now).
 
         Raises exception on failure."""
-        self.logger.debug("check({}) called with {} responses".format(fingerprint,
+        self.logger.debug("check(%s) called with %s responses" % (fingerprint,
                                                                       len(responses)))
         agree_now = responses.key_agreement_count(fingerprint)
         if agree_now < self.quorum:
@@ -60,9 +60,9 @@ class Policy:
         qduration = responses.quorum_duration(fingerprint,
                                               self.quorum,
                                               self.stale_limit)
-        self.logger.debug("Quorum duration is {}".format(qduration))
+        self.logger.debug("Quorum duration is %s" % (qduration))
         if qduration < self.quorum_duration:
             raise QuorumDurationNotReached(self.quorum_duration, qduration)
-        self.logger.debug("Policy check succeeded".format(qduration))
+        self.logger.debug("Policy check succeeded %s" % (qduration))
 
         

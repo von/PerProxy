@@ -84,7 +84,7 @@ def main(argv=None):
         responses = checker.responses
     else:
         notaries = Notaries.from_file(args.notaries_file)
-        output.debug("Read configuration for {} notaries from configuration {}".format(len(notaries), args.notaries_file))
+        output.debug("Read configuration for %s notaries from configuration %s" % (len(notaries), args.notaries_file))
         responses = notaries.query(service, num=args.num_notaries)
         if responses and len(responses):
             for response in responses:

@@ -66,14 +66,14 @@ class Notaries(list):
             to_query = self
         else:
             if num > len(self):
-                raise ValueError("Too many notaries requested ({} > {})".format(num, len(self)))
+                raise ValueError("Too many notaries requested (%s > %s)" % (num, len(self)))
             to_query = random.sample(self, num)
         responses = NotaryResponses()
         dispatchers = []
         # Use own map here for thread safety
         map = {}
         for notary in to_query:
-            self.logger.debug("Querying {} about {}...".format(notary, service))
+            self.logger.debug("Querying %s about %s..." % (notary, service))
             dispatchers.append((notary,
                                 HTTP_dispatcher(notary.get_url(service),
                                                 map=map)))
@@ -85,14 +85,14 @@ class Notaries(list):
                 response = dispatcher.get_response()
                 xml = response.read()
                 response = NotaryResponse(xml)
-                self.logger.debug("Validating response from {}".format(notary))
+                self.logger.debug("Validating response from %s" % (notary))
                 notary.verify_response(response, service)
                 self.logger.debug("Response signature verified")
                 responses.append(response)
             except httplib.BadStatusLine as e:
-                self.logger.error("Failed to parse response from {}, bad status: {}".format(notary, e))
+                self.logger.error("Failed to parse response from %s, bad status: %s" % (notary, e))
             except NotaryException as e:
-                self.logger.error("Error validating response from {}: {}".format(notary, e))
+                self.logger.error("Error validating response from %s: %s" % (notary, e))
         return responses
 
     def find_notary(self, hostname, port=None):
@@ -123,7 +123,7 @@ class Notary:
         self.public_key = public_key
 
     def __str__(self):
-        return "Notary at {} port {}".format(self.hostname, self.port)
+        return "Notary at %s port %s" % (self.hostname, self.port)
 
     def query(self, service):
         """Query notary regarding given service, returning NotaryResponse
@@ -133,18 +133,18 @@ class Notary:
         try:
             stream = urllib.urlopen(url)
         except IOError as e:
-            raise NotaryException("Error connecting to Notary {}: {}".format(self, str(e)))
+            raise NotaryException("Error connecting to Notary %s: %s" % (self, str(e)))
         if stream.getcode() == 404:
             raise NotaryUnknownServiceException()
         elif stream.getcode() != 200:
-            raise NotaryException("Got bad http response code ({}) from {} for {}".format(stream.getcode(), self, service))
+            raise NotaryException("Got bad http response code (%s) from %s for %s" % (stream.getcode(), self, service))
         response = "".join(stream.readlines())
         stream.close()
         return NotaryResponse(response)
 
     def get_url(self, service):
         """Return the URL to use to query for the given service"""
-        url = "http://{}:{}/?host={}&port={}&service_type={}".format(self.hostname, self.port, service.hostname, service.port, service.type)
+        url = "http://%s:%s/?host=%s&port=%s&service_type=%s" % (self.hostname, self.port, service.hostname, service.port, service.type)
         return url
 
     @classmethod
@@ -188,7 +188,7 @@ class Notary:
             # We hit EOF before finding a Notary
             return None
         if public_key is None:
-            raise NotaryException("No public key found for Notary {}:{}".format(hostname, port))
+            raise NotaryException("No public key found for Notary %s:%s" % (hostname, port))
         return Notary(hostname, port, public_key)
 
     @classmethod
@@ -209,7 +209,7 @@ class Notary:
             One nul byte (Not sure what this is for)
             Response binary blob -- see NotaryResponse.bytes()
             """
-        data = bytearray(b"{}:{},{}".format(service.hostname,
+        data = bytearray(b"%s:%s,%s" % (service.hostname,
                                             service.port,
                                             service.type))
         # One byte of zero  - unknown what this represents
@@ -252,7 +252,7 @@ class NotaryResponses(list):
             self.logger.debug("No non-stale responses")
             return(0)
         oldest_response_time = min(non_stale_response_times)
-        self.logger.debug("Oldest response time is {}".format(time.ctime(oldest_response_time)))
+        self.logger.debug("Oldest response time is %s" % (time.ctime(oldest_response_time)))
 
         # Get list of all times we had a key change
         key_change_times = reduce(lambda a,b: a + b,
@@ -268,14 +268,14 @@ class NotaryResponses(list):
 
         first_valid_time = None
         for change_time in key_change_times:
-            self.logger.debug("Checking time {}".format(time.ctime(change_time)))
+            self.logger.debug("Checking time %s" % (time.ctime(change_time)))
             agreement_count = self.key_agreement_count(cert_fingerprint,
                                                        change_time)
             if agreement_count >= quorum:
                 first_valid_time = change_time
-                self.logger.debug("Quorum made with {} notaries".format(agreement_count))
+                self.logger.debug("Quorum made with %s notaries" % (agreement_count))
             else:
-                self.logger.debug("Not enough notaries to make quorum ({})".format(agreement_count))
+                self.logger.debug("Not enough notaries to make quorum (%s)" % (agreement_count))
                 break
         if first_valid_time is None:
             return 0  # No quorum_duration
@@ -310,7 +310,7 @@ class NotaryResponse:
         self.dom = xml.dom.minidom.parseString(self.xml)
         doc_element = self.dom.documentElement
         if doc_element.tagName != "notary_reply":
-            raise NotaryResponseException("Unrecognized document element: {}".format(doc_element.tagName))
+            raise NotaryResponseException("Unrecognized document element: %s" % (doc_element.tagName))
         self.version = doc_element.getAttribute("version")
         self.sig_type = doc_element.getAttribute("sig_type")
         # Convert signature from base64 to raw form
@@ -349,9 +349,9 @@ class NotaryResponse:
                       [key.change_times() for key in self.keys])
 
     def __str__(self):
-        s = "Notary Response Version: {} Signature type: {}\n".format(self.version,
+        s = "Notary Response Version: %s Signature type: %s\n" % (self.version,
                                                                       self.sig_type)
-        s += "\tSig: {}\n".format(base64.standard_b64encode(self.sig))
+        s += "\tSig: %s\n" % (base64.standard_b64encode(self.sig))
         for key in self.keys:
             s += str(key)
         return s
@@ -378,7 +378,7 @@ class ServiceKey:
                 (self.fingerprint == other.fingerprint))
 
     def __str__(self):
-        s = "Fingerprint: {} type: {}\n".format(self.fingerprint, self.type)
+        s = "Fingerprint: %s type: %s\n" % (self.fingerprint, self.type)
         return s
      
 class NotaryResponseKey(ServiceKey):
@@ -388,7 +388,7 @@ class NotaryResponseKey(ServiceKey):
     def from_dom(cls, dom):
         """Create NotaryResponseKey from dom instance"""
         if dom.tagName != "key":
-            raise NotaryResponseException("Unrecognized key element: {}".format(dom.tagName))
+            raise NotaryResponseException("Unrecognized key element: %s" % (dom.tagName))
         type = ServiceType.from_string(dom.getAttribute("type"))
         key = cls.from_string(type, dom.getAttribute("fp"))
         key.timespans = [NotaryResponseTimeSpan(e)
@@ -433,7 +433,7 @@ class NotaryResponseTimeSpan:
     def __init__(self, dom):
         """Create NoraryResponseTimeSpan from dom"""
         if dom.tagName != "timestamp":
-            raise NotaryResponseException("Unrecognized timespan element: {}".format(dom.tagName))
+            raise NotaryResponseException("Unrecognized timespan element: %s" % (dom.tagName))
         self.start = int(dom.getAttribute("start"))
         self.end = int(dom.getAttribute("end"))
 
@@ -454,4 +454,4 @@ class NotaryResponseTimeSpan:
         return b"".join([start_bytes, end_bytes])
 
     def __str__(self):
-        return "{} - {}".format(time.ctime(self.start), time.ctime(self.end))
+        return "%s - %s" % (time.ctime(self.start), time.ctime(self.end))

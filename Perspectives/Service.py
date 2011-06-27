@@ -12,7 +12,7 @@ class Service:
         self.type = type if type is not None else ServiceType.SSL
 
     def __str__(self):
-        return "{}:{},{}".format(self.hostname, self.port, self.type)
+        return "%s:%s,%s" % (self.hostname, self.port, self.type)
 
 class ServiceType:
     """Constants for service types"""

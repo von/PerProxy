@@ -79,7 +79,7 @@ class TestNotaryResponse(unittest.TestCase):
         expected_key = ServiceKey.from_string(ServiceType.SSL,
                                               "87:71:5c:d4:7b:66:fd:9f:96:79:ba:0f:3e:15:b7:e3")                                  
         self.assertEqual(key, expected_key,
-                         "{} != {}".format(key, expected_key))
+                         "%s != %s" % (key, expected_key))
 
 if __name__ == "__main__":
     unittest.main()
