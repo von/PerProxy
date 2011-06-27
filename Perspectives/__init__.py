@@ -16,4 +16,10 @@ from Service import Service, ServiceType
 # Avoid warnings about lack of defined handlers
 # http://docs.python.org/howto/logging.html#library-config
 import logging
-logging.getLogger("Perspectives").addHandler(logging.NullHandler())
+
+# NullHandler not in Python < 2.7
+class NullHandler(logging.Handler):
+    def emit(self, record):
+        pass
+
+logging.getLogger("Perspectives").addHandler(NullHandler())

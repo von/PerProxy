@@ -25,7 +25,7 @@ class ServiceCache:
         Returns None if there is no certificate in the cache."""
         key = self._key(service)
         if not self.store.has_key(key):
-            raise KeyError("Host {} port {} not in cache".format(hostname,
+            raise KeyError("Host %s port %s not in cache" % (hostname,
                                                                  port))
         values = self.store[key]
         return (Fingerprint.from_string(values[0]), values[1])
@@ -37,14 +37,14 @@ class ServiceCache:
     def add(self, service, fingerprint):
         """Add certificate to cache for given service"""
         key = self._key(service)
-        self.logger.debug("Adding to Cache: {} -> {}".format(service,
+        self.logger.debug("Adding to Cache: %s -> %s" % (service,
                                                              fingerprint))
         self.store[key] = (str(fingerprint), now())
 
     @classmethod
     def _key(cls, service):
         """Given a hostname and port, return the key for the store"""
-        return "{}:{},{}".format(service.hostname, service.port, service.type)
+        return "%s:%s,%s" % (service.hostname, service.port, service.type)
 
 
         

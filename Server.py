@@ -79,7 +79,7 @@ class Server:
             try:
                 data = self.sock.recv(buflen)
             except Exception as e:
-                self.logger.warning("Got error reading: {}".format(str(e)))
+                self.logger.warning("Got error reading: %s" % str(e))
                 return ""  # Treat as EOF
             # I think len(data) == 0 means EOF and data == None is meaningless.
             if data is None:
@@ -93,4 +93,4 @@ class Server:
         return "".join(chunks)
 
     def __str__(self):
-        return "server at {}:{}".format(self.hostname, self.port)
+        return "server at %s:%s" % (self.hostname, self.port)

@@ -41,7 +41,7 @@ class HTTP_dispatcher(asyncore.dispatcher_with_send):
 
     def handle_connect(self):
         self.logger.debug("Connected. Sending GET command.")
-        self.send("GET {} HTTP/1.0\r\n\r\n".format(self.url))
+        self.send("GET %s HTTP/1.0\r\n\r\n" % (self.url))
 
     def handle_close(self):
         self.logger.debug("Closed.")

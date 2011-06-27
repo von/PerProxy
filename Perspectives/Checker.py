@@ -44,7 +44,7 @@ class Checker:
         """Check the actual server fingerprint seen.
 
         Raises exception on problem."""
-        self.logger.debug("Checking seen fingerprint for {}: {}".format(service, fingerprint))
+        self.logger.debug("Checking seen fingerprint for %s: %s" % (service, fingerprint))
         cached_fingerprint = self._get_cached_fingerprint(service)
         if (cached_fingerprint is None or
             fingerprint != cached_fingerprint):
@@ -52,7 +52,7 @@ class Checker:
             try:
                 self.do_policy_check(service, fingerprint)
             except PolicyException as e:
-                raise PerspectivesException("Policy check failed on {} for {}: {}".format(fingerprint, service, e))
+                raise PerspectivesException("Policy check failed on %s for %s: %s" % (fingerprint, service, e))
             self.logger.info("Fingerprint checked out.")
             self.cache.add(service, fingerprint)
         else:
@@ -64,19 +64,19 @@ class Checker:
             (fingerprint, last_seen) = self.cache.get(service)
             age = now() - last_seen
             if age < self.cache_stale_age:
-                self.logger.debug("Cache hit: {} -> {}".format(service,
+                self.logger.debug("Cache hit: %s -> %s" % (service,
                                                                fingerprint))
                 return fingerprint
-            self.logger.debug("Cache is stale for {}".format(service))
+            self.logger.debug("Cache is stale for %s" % (service))
         else:
-            self.logger.debug("Cache miss for {}".format(service))
+            self.logger.debug("Cache miss for %s" % (service))
         return None
 
     def do_policy_check(self, service, fingerprint):
         """Check given service and certificate against Notaries with our policy
 
         Raises PolicyException on policy failure"""
-        self.logger.debug("Querying notaries regarding {} and {}".format(service, fingerprint))
+        self.logger.debug("Querying notaries regarding %s and %s" % (service, fingerprint))
         self.responses = self.notaries.query(service)
-        self.logger.debug("Got {} responses".format(len(self.responses)))
+        self.logger.debug("Got %s responses" % (len(self.responses)))
         self.policy.check(fingerprint, self.responses)

@@ -80,9 +80,9 @@ def main(argv=None):
     ext.set_critical()
     cert.add_ext(ext)
     cert.sign(key, 'sha1')
-    output.info("Saving certificate to {}".format(args.certFile))
+    output.info("Saving certificate to %s" % args.certFile)
     cert.save_pem(args.certFile)
-    output.info("Saving private key to {}".format(args.keyFile))
+    output.info("Saving private key to %s" % args.keyFile)
     key.save_key(args.keyFile, cipher=None)  # cipher=None -> save in the clear
     output.info("Success.")
 

@@ -25,7 +25,7 @@ class Fingerprint:
         try:
             data = binascii.a2b_hex(fingerprint)
         except Exception as e:
-            raise FingerprintException("Error parsing fingerprint \"{}\": {}".format(fingerprint, str(e)))
+            raise FingerprintException("Error parsing fingerprint \"%s\": %s" % (fingerprint, str(e)))
         return cls(data)
 
     def __str__(self, sep=":"):

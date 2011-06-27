@@ -13,6 +13,7 @@ import select
 import socket
 import SocketServer
 import ssl
+import string
 import sys
 import threading
 import time
@@ -49,7 +50,7 @@ class Handler(SocketServer.BaseRequestHandler):
         self.logger.info("Connection received.")
         
         hostname, port = self.parse_connect_command()
-        self.logger.info("Target is {}:{}".format(hostname, port))
+        self.logger.info("Target is %s:%s" % (hostname, port))
         self.logger = logging.LoggerAdapter(self.logger,
                                             { "target" : hostname })
 
@@ -65,41 +66,41 @@ class Handler(SocketServer.BaseRequestHandler):
         try:
             server = self.connect_to_server(hostname, port)
         except PerspectivesException as e:
-            self.logger.error("Deferring handling error connecting to server: {}".format(e))
+            self.logger.error("Deferring handling error connecting to server: %s" % e)
             server_error = e
         except socket.gaierror as e:
-            server_error = "Unknown host \"{}\"".format(hostname)
+            server_error = "Unknown host \"%s\"" % hostname
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                server_error = "Connection to {} refused.".format(hostname)
+                server_error = "Connection to \"%s\" refused." % hostname
             else:
                 server_error = e
         except Exception as e: 
             self.logger.exception(e)
-            self.logger.error("Deferring handling error connecting to server: {}".format(e))
+            self.logger.error("Deferring handling error connecting to server: %s" % e)
             server_error = e
 
         try:
             cert_file, key_file = self.ca.get_ssl_credentials(hostname)
             self.logger.debug("Responding to client.")
-            self.logger.debug("Cert = {}".format(cert_file))
-            self.logger.debug("Key = {}".format(key_file))
+            self.logger.debug("Cert = %s" % cert_file)
+            self.logger.debug("Key = %s" % key_file)
             self.respond(200)
             self.logger.debug("Starting SSL with client...")
             self.start_ssl(key_file, cert_file)
             self.logger.debug("SSL with client successful")
         except IOError as e:
-            self.logger.error("Error responding to client: {}".format(str(e)))
+            self.logger.error("Error responding to client: %s" % str(e))
             return
         except ssl.SSLError as e:
-            self.logger.error("Error starting SSL with client: {}".format(str(e)))
+            self.logger.error("Error starting SSL with client: %s" % str(e))
             return
 
         if server_error:
             # We got an error of some sort during setup with server.
             # Instead of connecting client to server, we're going to
             # sent the client a hunk of html describing the error.
-            self.logger.info("Handling deferred server error: {}".format(server_error))
+            self.logger.info("Handling deferred server error: %s" % server_error)
             self.handle_server_error(server_error)
         else:
             # Good connections with client and server, just start
@@ -116,15 +117,16 @@ class Handler(SocketServer.BaseRequestHandler):
 
         Return Server instance."""
         
-        self.logger.info("Connecting to {}:{}".format(hostname, port))
+        self.logger.info("Connecting to %s:%s" % (hostname, port))
         try:
             server = Server(hostname, port)
         except Exception as e:
-            self.logger.error("Error connecting to {}:{}: {}".format(hostname,
+            self.logger.error("Error connecting to %s:%s: %s" % (hostname,
                                                                      port,
                                                                      e))
             raise
-        self.logger.debug("Server subject is {}".format(server.subject().as_text()))                             
+
+        self.logger.debug("Server subject is %s" % (server.subject().as_text()))                             
         self.check_server(server)
         
         self.logger.debug("Connection to server established")
@@ -133,9 +135,9 @@ class Handler(SocketServer.BaseRequestHandler):
     def check_server(self, server):
         """Do checks on server."""
         if self.whitelist:
-            self.logger.debug("Checking whitelist for {}".format(server.hostname))
+            self.logger.debug("Checking whitelist for %s" % (server.hostname))
             if self.whitelist.contains(server.hostname):
-                self.logger.info("Server {} is on whitelist.".format(server.hostname))
+                self.logger.info("Server %s is on whitelist." % (server.hostname))
                 return
 
         self.logger.info("Checking certificate with Perspectives")
@@ -144,7 +146,7 @@ class Handler(SocketServer.BaseRequestHandler):
             service = Service(server.hostname, server.port)
             self.checker.check_seen_fingerprint(service, fingerprint)
         except PerspectivesException as e:
-            self.logger.error("Perspectives check failed: {}".format(str(e)))
+            self.logger.error("Perspectives check failed: %s" % str(e))
             raise
 
     def send(self, msg):
@@ -162,10 +164,10 @@ class Handler(SocketServer.BaseRequestHandler):
         If msg is not provided, uses default for code."""
         msg = msg if msg is not None else \
             BaseHTTPServer.BaseHTTPRequestHandler.responses[code]
-        self.send("{} {} {}\n".format(self.PROTOCOL_VERSION,
+        self.send("%s %s %s\n" % (self.PROTOCOL_VERSION,
                                       code,
                                       msg))
-        self.send("Proxy-agent: {}\n".format(self.AGENT_STRING))
+        self.send("Proxy-agent: %s\n" % self.AGENT_STRING)
         self.send("\n")
 
     def start_ssl(self, key_file, cert_file):
@@ -198,29 +200,29 @@ class Handler(SocketServer.BaseRequestHandler):
             (read_ready, write_ready, error) = select.select(socks,[], socks)
             if len(error) != 0:
                 instance = instances[error[0]]
-                self.logger.info("Got exception from {}".format(instance))
+                self.logger.info("Got exception from %s" % instance)
                 break
             for s in read_ready:
                 instance = instances[s]
-                self.logger.debug("Reading from {}".format(instance))
+                self.logger.debug("Reading from %s" % instance)
                 try:
                     data = instance.recvall()
                 except IOError as e:
-                    self.logger.error("Error reading from {}: {}".format(instance,
+                    self.logger.error("Error reading from %s: %s" % (instance,
                                                                          str(e)))
                     done = True
                     break
                 if data is None:
                     # M2Crypto.SSL.Connection returns None sometimes.
                     # This does not indicate an EOF. Ignore.
-                    self.logger.debug("Ignoring read of None from {}".format(instance))
+                    self.logger.debug("Ignoring read of None from %s" % instance)
                     continue
                 if len(data) == 0:
-                    self.logger.info("Got EOF from {}".format(instance))
+                    self.logger.info("Got EOF from %s" % instance)
                     done = True
                     break
                 out = peer[instance]
-                self.logger.debug("Writing {} bytes to {}".format(len(data),
+                self.logger.debug("Writing %s bytes to %s" % (len(data),
                                                                   out))
                 out.sendall(data)
         self.logger.info("Pass through done.")
@@ -234,7 +236,7 @@ class Handler(SocketServer.BaseRequestHandler):
         send back a web page describing the error."""
         # First we read request and headers client meant to send to server
         method, path, protocol, headers = self.read_header()
-        self.logger.debug("Client request was: {} {} {}".format(method,
+        self.logger.debug("Client request was: %s %s %s" % (method,
                                                                 path,
                                                                 protocol))
         # TODO: We may want to respond differently depending on information
@@ -245,7 +247,9 @@ class Handler(SocketServer.BaseRequestHandler):
             "title" : str(server_error),
             "error" : str(server_error),
             }
-        self.send(self.HTML_ERROR_TEMPLATE.format(**values))
+        template = string.Template(self.HTML_ERROR_TEMPLATE)
+        html = template.substitute(values)
+        self.send(html)
         self.logger.debug("Error response sent.")
         
     def read_header(self):
@@ -271,7 +275,7 @@ class Handler(SocketServer.BaseRequestHandler):
         Returns target_hostname and target_port."""
         (method, path, protocol, header_lines) = self.read_header()
         if method != "CONNECT":
-            raise IOError("Client sent unexpected command \"{}\"".format(method))
+            raise IOError("Client sent unexpected command \"%s\"" % method)
         hostname, port_str = path.split(":")
         port = int(port_str)
         return hostname, port
@@ -291,7 +295,9 @@ class Handler(SocketServer.BaseRequestHandler):
             try:
                 # SSLSocket will raise ssl.SSLError if no data pending
                 #           or return 0 bytes on EOF
+                self.logger.debug("recv()...")
                 data = self.request.recv(buflen)
+                self.logger.debug("...returned %d bytes" % len(data))
             except ssl.SSLError:
                 data = None
             if data is None or len(data) == 0:
@@ -300,7 +306,7 @@ class Handler(SocketServer.BaseRequestHandler):
         return "".join(chunks)
 
     def __str__(self):
-        return "client at {}:{}".format(self.client_address[0],
+        return "client at %s:%s" % (self.client_address[0],
                                         self.client_address[1])
 
 
@@ -378,11 +384,11 @@ def parse_args(argv):
 def setup_logging(args):
     """Set up logigng via logging module"""
     if not os.path.exists(args.logging_config):
-        raise ValueError("Logging configuration file {} does not exist".format(args.logging_config))
+        raise ValueError("Logging configuration file %s does not exist" % (args.logging_config))
     try:
         logging.config.fileConfig(args.logging_config)
     except ConfigParser.Error as e:
-        raise Exception("Error parsing logging configuration file {}: {}".format(args.logging_config, str(e)))
+        raise Exception("Error parsing logging configuration file %s: %s" % (args.logging_config, str(e)))
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -401,22 +407,23 @@ def main(argv=None):
     output = logging.getLogger("main")
 
     if args.conf_file:
-        output.debug("Using configuration from {}".format(args.conf_file))
+        output.debug("Using configuration from %s" % (args.conf_file))
 
-    output.debug("Initializing Perspectives checker with notaries from {}".format(args.notaries_file))
+    output.debug("Initializing Perspectives checker with notaries from %s" % (args.notaries_file))
 
-    output.debug("Loading CA from {} and {}".format(args.ca_cert_file,
+    output.debug("Loading CA from %s and %s" % (args.ca_cert_file,
                                                     args.ca_key_file))
     Handler.ca = CertificateAuthority.from_file(args.ca_cert_file,
                                                 args.ca_key_file)
     Handler.checker = Checker(notaries_file = args.notaries_file)
 
     if args.whitelist_filename is not None:
-        output.debug("Loading whitelist from {}".format(args.whitelist_filename))
+        output.debug("Loading whitelist from %s" % (args.whitelist_filename))
         wl = WhiteList.from_file(args.whitelist_filename)
         Handler.whitelist = wl
 
-    output.debug("Loading error template from {}".format(args.error_template))
+    output.debug("Loading error template from %s" % (args.error_template))
+
     with open(args.error_template) as f:
         Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
 
@@ -424,7 +431,7 @@ def main(argv=None):
     output.debug("Initializing M2Crypto threading")
     M2Crypto.threading.init()
 
-    output.info("Starting proxy on {} port {}".format(args.proxy_hostname,
+    output.info("Starting proxy on %s port %s" % (args.proxy_hostname,
                                                       args.proxy_port))
     server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
     server_thread = threading.Thread(target=server.serve_forever)
