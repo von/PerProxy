@@ -373,6 +373,8 @@ def parse_args(argv):
     parser.add_argument("-C", "--ca-cert-file",
                         type=str,
                         help="specify CA cert file", metavar="filename")
+    parser.add_argument("-d", "--debug", action="store_true",
+                        help="debug mode")
     parser.add_argument("-K", "--ca-key-file",
                         type=str,
                         help="specify CA key file", metavar="filename")
@@ -396,6 +398,13 @@ def setup_logging(args):
         logging.config.fileConfig(args.logging_config)
     except ConfigParser.Error as e:
         raise Exception("Error parsing logging configuration file %s: %s" % (args.logging_config, str(e)))
+    if args.debug:
+        # Set up exact output handler to send all logs to Stdout
+        root_logger = logging.getLogger()
+        root_handler = logging.StreamHandler(sys.stdout)
+        root_handler.setFormatter(logging.Formatter("PerProxy: %(message)s"))
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(root_handler)
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -412,6 +421,9 @@ def main(argv=None):
         return(1)
 
     output = logging.getLogger("main")
+
+    if args.debug:
+        output.debug("Running in DEBUG mode")
 
     if args.conf_file:
         output.debug("Using configuration from %s" % (args.conf_file))
