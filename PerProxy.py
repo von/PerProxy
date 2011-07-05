@@ -172,10 +172,14 @@ class Handler(SocketServer.BaseRequestHandler):
 
     def start_ssl(self, key_file, cert_file):
         """Start SSL with client."""
-        ssl_sock = ssl.wrap_socket(self.request,
-                                   keyfile = key_file,
-                                   certfile = cert_file,
-                                   server_side = True)
+        self.ssl_context = M2Crypto.SSL.Context("sslv3")
+        self.ssl_context.load_cert(certfile = cert_file,
+                                   keyfile = key_file)
+        ssl_sock = M2Crypto.SSL.Connection(self.ssl_context, self.request)
+        # Experimentally, these seem to be the right calls to have M2Crypto
+        # accept an SSL HandShake as a server on an existing socket.
+        ssl_sock.setup_ssl()
+        ssl_sock.accept_ssl()
         self.orig_request = self.request
         self.request = ssl_sock
 
@@ -297,7 +301,10 @@ class Handler(SocketServer.BaseRequestHandler):
                 #           or return 0 bytes on EOF
                 self.logger.debug("recv()...")
                 data = self.request.recv(buflen)
-                self.logger.debug("...returned %d bytes" % len(data))
+                if data is None:
+                    self.logger.debug("...returned None")
+                else:
+                    self.logger.debug("...returned %d bytes" % len(data))
             except ssl.SSLError:
                 data = None
             if data is None or len(data) == 0:
