@@ -263,7 +263,7 @@ class NotaryResponses(list):
         # Get list of all times we had a key change
         key_change_times = reduce(lambda a,b: a + b,
                                   [r.key_change_times()
-                                   for r in self])
+                                   for r in valid_responses])
         # We ignore all key_change_times after the oldest_response_time
         key_change_times = filter(lambda t: t <= oldest_response_time,
                                   key_change_times)
