@@ -41,6 +41,14 @@ Please report comments, issues, bugs, etc. at https://github.com/von/PerProxy
 
 --------------------
 
+Prerequisites:
+
+* M2Crypto: http://chandlerproject.org/Projects/MeTooCrypto
+
+* argparse: https://code.google.com/p/argparse/  - comes with Python 2.7+
+
+--------------------
+
 Here is how PerProxy currently works:
 
 * It acts as an HTTPS proxy, receiving and parsing a CONNECT message
