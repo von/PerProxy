@@ -20,6 +20,11 @@ from Server import Server
 class ProxyServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
+    def handle_error(self, request, client_address):
+        """Handle an uncaught exception in handle()"""
+        logger = logging.getLogger(self.__class__.__name__)
+        logger.exception("Uncaught exception responding to %s" % client_address[0])
+
 class Handler(SocketServer.BaseRequestHandler):
 
     ca = None
