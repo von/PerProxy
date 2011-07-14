@@ -47,6 +47,9 @@ Prerequisites:
 
 * argparse: https://code.google.com/p/argparse/  - comes with Python 2.7+
 
+* pyPerspecties: https://github.com/von/pyPerspectives - python client
+code for Perspectives.
+
 --------------------
 
 Here is how PerProxy currently works:
