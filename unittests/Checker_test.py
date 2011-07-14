@@ -8,7 +8,7 @@ class TestChecker(unittest.TestCase):
 
     def test_init(self):
         """Test basic class creation of Checker class"""
-        from Perspectives import Checker
+        from Checker import Checker
 
 
 if __name__ == "__main__":
