@@ -12,10 +12,9 @@ import threading
 import time
 
 from CertificateAuthority import CertificateAuthority
+from Checker import Checker
 from ProxyServer import ProxyServer, Handler
 from WhiteList import WhiteList
-
-from Perspectives import Checker
 
 
 def parse_args(argv):

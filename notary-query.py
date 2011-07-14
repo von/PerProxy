@@ -5,7 +5,8 @@ import argparse
 import logging
 import sys
 
-from Perspectives import Checker, Fingerprint, \
+from Checker import Checker
+from Perspectives import Fingerprint, \
     PerspectivesException, Notaries, \
     Service, ServiceType
 

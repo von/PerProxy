@@ -2,7 +2,7 @@
 
 import logging
 
-from Fingerprint import Fingerprint
+from Perspectives import Fingerprint
 
 def now():
     """Return current time in seconds as integer"""

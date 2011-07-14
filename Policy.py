@@ -2,7 +2,7 @@
 
 import logging
 
-import Notary
+from Perspectives import Notary
 
 class PolicyException(Exception):
     """Policy check failed"""
