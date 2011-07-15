@@ -232,6 +232,8 @@ class Handler(SocketServer.BaseRequestHandler):
                 self.logger.debug("Writing %s bytes to %s" % (len(data),
                                                                   out))
                 out.sendall(data)
+            else:
+                self.logger.debug("select() returned without anything for us to do")
         self.logger.info("Pass through done.")
 
     def handle_server_error(self, server_error):
