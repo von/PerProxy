@@ -78,5 +78,6 @@ class Checker:
         Raises PolicyException on policy failure"""
         self.logger.debug("Querying notaries regarding %s and %s" % (service, fingerprint))
         self.responses = self.notaries.query(service)
-        self.logger.debug("Got %s responses" % (len(self.responses)))
+        valid_responses = [r for r in self.responses if r is not None]
+        self.logger.debug("Got %s responses" % (len(valid_responses)))
         self.policy.check(fingerprint, self.responses)
