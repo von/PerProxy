@@ -178,7 +178,7 @@ class Handler(SocketServer.BaseRequestHandler):
     def pass_through(self, server):
         """Pass data back and forth between client and server"""
         self.logger.info("Entering pass_through mode")
-        none_read_threshold = 5
+        none_read_count_threshold = 5
         self.make_nonblocking()
         server.make_nonblocking()
         # Mapping from sockets to instances
