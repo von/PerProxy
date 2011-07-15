@@ -178,6 +178,7 @@ class Handler(SocketServer.BaseRequestHandler):
     def pass_through(self, server):
         """Pass data back and forth between client and server"""
         self.logger.info("Entering pass_through mode")
+        none_read_threshold = 5
         self.make_nonblocking()
         server.make_nonblocking()
         # Mapping from sockets to instances
@@ -192,6 +193,7 @@ class Handler(SocketServer.BaseRequestHandler):
             server : self
             }
         done = False
+        none_read_count = 0
         while not done:
             (read_ready, write_ready, error) = select.select(socks,[], socks)
             if len(error) != 0:
@@ -210,9 +212,18 @@ class Handler(SocketServer.BaseRequestHandler):
                     break
                 if data is None:
                     # M2Crypto.SSL.Connection returns None sometimes.
-                    # This does not indicate an EOF. Ignore.
-                    self.logger.debug("Ignoring read of None from %s" % instance)
-                    continue
+                    # This does not indicate an EOF.  Be done if we
+                    # see a lot of None reads in a row, might be causing
+                    # high CPU consumption problems.
+                    none_read_count += 1
+                    if none_read_count < none_read_count_threshold:
+                        self.logger.debug("Ignoring read of None from %s" % instance)
+                        continue
+                    else:
+                        self.logger.info("Reach threshold (%d) for None reads" % none_read_count_threshold)
+                        done = True
+                        break
+                none_read_count = 0
                 if len(data) == 0:
                     self.logger.info("Got EOF from %s" % instance)
                     done = True
