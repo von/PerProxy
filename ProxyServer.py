@@ -200,6 +200,9 @@ class Handler(SocketServer.BaseRequestHandler):
                 instance = instances[error[0]]
                 self.logger.info("Got exception from %s" % instance)
                 break
+            if len(read_ready) == 0:
+                self.logger.debug("select() returned without anything for us to do")
+                continue
             for s in read_ready:
                 instance = instances[s]
                 self.logger.debug("Reading from %s" % instance)
@@ -232,8 +235,7 @@ class Handler(SocketServer.BaseRequestHandler):
                 self.logger.debug("Writing %s bytes to %s" % (len(data),
                                                                   out))
                 out.sendall(data)
-            else:
-                self.logger.debug("select() returned without anything for us to do")
+
         self.logger.info("Pass through done.")
 
     def handle_server_error(self, server_error):
