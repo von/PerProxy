@@ -19,12 +19,53 @@ def now():
     return int(time.time())
 
 ######################################################################
+#
+# Policy exceptions
+
+class PolicyException(Exception):
+    """Policy check failed"""
+    pass
+
+class QuorumNotReached(PolicyException):
+    """Not enough notaries have seen given key"""
+    
+    def __init__(self, notaries_needed, notaries_saw_key):
+        self.notaries_needed = notaries_needed
+        self.notaries_saw_key = notaries_saw_key
+
+    def __str__(self):
+        return "Only %s out of required %s notaries have seen key" % (
+            self.notaries_saw_key, self.notaries_needed)
+
+class QuorumDurationNotReached(PolicyException):
+    """Quorum duration not reached for given key"""
+
+    def __init__(self, duration_needed, duration_achieved):
+        self.duration_needed = duration_needed
+        self.duration_achieved = duration_achieved
+
+    def __str__(self):
+        return "Quorum duration of %s shorter than required %s" % (
+            self.duration_achieved, self.duration_needed)
+
+######################################################################
 
 class Checker:
     """Inteface to Persepectices logic"""
 
-    def __init__(self, policy=None, cache=None, notaries_file=None):
-        """Check a Perspectives Checker instance"""
+    def __init__(self, cache=None, notaries_file=None,
+                 quorum_percentage=75, quorum_duration=86400,
+                 stale_limit=86400):
+        """Check a Perspectives Checker instance
+
+        quorum_percentage is percentage of notaries needed for quorum
+
+        quorum_duration is seconds of quorum needed
+
+        stale_limit: any response without a seen key fresher than this
+        limit is ignored inside this limit. I.e. a notary with a stale
+        response does not count towards quorum inside this period.
+        """
         self.logger = logging.getLogger("Perspectives.Checker")
         self.logger.debug("Perspective Checker class initializing")
         self.cache = cache if cache is not None \
@@ -34,10 +75,13 @@ class Checker:
         notaries_file = notaries_file if notaries_file is not None \
             else "./http_notary_list.txt"
         self.notaries = Notaries.from_file(notaries_file)
-        # Default policy is quorum of n-1 and quorum duration of 1 day
-        self.policy = policy if policy is not None \
-            else Policy(quorum=len(self.notaries) - 1,
-                        quorum_duration=24*3600)
+        self.quorum = int(len(self.notaries) * quorum_percentage / 100)
+        self.logger.debug(
+            "%d notaries, quorum is %d (%d%%)" % (len(self.notaries),
+                                                  self.quorum,
+                                                  quorum_percentage))
+        self.quorum_duration = quorum_duration
+        self.stale_limit = stale_limit
         self.logger.debug("Perspective instance initialized")
 
     def check_seen_fingerprint(self, service, fingerprint):
@@ -80,4 +124,15 @@ class Checker:
         self.responses = self.notaries.query(service)
         valid_responses = [r for r in self.responses if r is not None]
         self.logger.debug("Got %s responses" % (len(valid_responses)))
-        self.policy.check(fingerprint, self.responses)
+        agree_now = self.responses.key_agreement_count(fingerprint)
+        self.logger.debug("%d notaries agree on key now" % agree_now)
+        if agree_now < self.quorum:
+            self.logger.debug("Quorum failed at current time")
+            raise QuorumNotReached(self.quorum, agree_now)
+        qduration = self.responses.quorum_duration(fingerprint,
+                                                   self.quorum,
+                                                   self.stale_limit)
+        self.logger.debug("Quorum duration is %s" % (qduration))
+        if qduration < self.quorum_duration:
+            raise QuorumDurationNotReached(self.quorum_duration, qduration)
+        self.logger.debug("Policy check succeeded %s" % (qduration))
