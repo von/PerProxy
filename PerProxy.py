@@ -35,6 +35,8 @@ def parse_args(argv):
         "error_template" : "./error_template.html",
         "logging_config" : "./logging.config",
         "notaries_file" : "./http_notary_list.txt",
+        "perspectives_quorum_duration" : 86400,  # One day
+        "perspectives_quorum_percentage" : 75,
         "proxy_hostname" : "localhost",
         "proxy_port" : 8080,
         "whitelist_filename" : None,
@@ -47,6 +49,10 @@ def parse_args(argv):
             (("CA", "KeyFile"), "ca_key_file"),
             (("Logging", "Config"), "logging_config"),
             (("Perspectives", "NotaryFile"), "notaries_file"),
+            (("Perspectives", "QuorumDuration"),
+             "perspectives_quorum_duration"),
+            (("Perspectives", "QuorumPercentage"),
+             "perspectives_quorum_percentage"),
             (("Proxy", "Hostname"), "proxy_hostname"),
             (("Proxy", "Port"), "proxy_port"),
             (("Templates", "Error"), "error_template"),
@@ -134,7 +140,11 @@ def main(argv=None):
                                                     args.ca_key_file))
     Handler.ca = CertificateAuthority.from_file(args.ca_cert_file,
                                                 args.ca_key_file)
-    Handler.checker = Checker(notaries_file = args.notaries_file)
+    Handler.checker = Checker(
+        notaries_file = args.notaries_file,
+        quorum_percentage=args.perspectives_quorum_percentage,
+        quorum_duration=args.perspectives_quorum_duration
+        )
 
     if args.whitelist_filename is not None:
         output.debug("Loading whitelist from %s" % (args.whitelist_filename))
