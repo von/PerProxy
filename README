@@ -13,7 +13,7 @@ browser and making certificates on the fly to imitate the expected
 server. As such, to use PerProxy, the first step is to create a CA
 certificate for it to use:
 
-./m2crypto-create-ca.py
+./perproxy-create-ca.py
 
 Then you need to load the newly create CA certificate into your
 browser. With FireFox, you just need to open the certificate, e.g. use
