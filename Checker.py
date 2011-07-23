@@ -6,7 +6,6 @@ import ssl
 
 from Perspectives import PerspectivesException
 from Perspectives import Notaries
-from Policy import Policy, PolicyException
 from ServiceCache import ServiceCache
 
 ######################################################################
