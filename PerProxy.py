@@ -11,10 +11,10 @@ import sys
 import threading
 import time
 
-from CertificateAuthority import CertificateAuthority
-from Checker import Checker
-from ProxyServer import ProxyServer, Handler
-from WhiteList import WhiteList
+from perproxy import CertificateAuthority
+from perproxy import Checker
+from perproxy import ProxyServer, Handler
+from perproxy import WhiteList
 
 
 def parse_args(argv):
