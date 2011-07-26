@@ -8,10 +8,11 @@ from perproxy import DEFAULT_INSTALL_PATH, DEFAULT_USER_CONF_PATH, VERSION
 
 CONF_PATH = os.path.join(DEFAULT_INSTALL_PATH, "etc")
 CONF_FILES = [
-    "PerProxy-whitelist.txt",
-    "PerProxy.conf",
-    "error_template.html",
-    "logging.config",
+    "conf/PerProxy-whitelist.txt",
+    "conf/PerProxy.conf",
+    "conf/error_template.html",
+    "conf/http_notary_list.txt",
+    "conf/logging.config",
     ]
 
 #
