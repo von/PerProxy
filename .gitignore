@@ -1,0 +1,4 @@
+# Ignore distutils temporary files
+PerProxy.egg-info/*
+build/*
+dist/*
