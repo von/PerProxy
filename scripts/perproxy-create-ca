@@ -2,9 +2,13 @@
 """Create a CA key and certificate with M2Crypto"""
 import argparse
 import logging
+import os
+import os.path
 import sys
 
 from M2Crypto import EVP, m2, RSA, X509
+
+from perproxy import DEFAULT_USER_CONF_PATH
 
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
@@ -19,6 +23,9 @@ def main(argv=None):
     # Set up formatter to just print message without preamble
     output_handler.setFormatter(logging.Formatter("%(message)s"))
     output.addHandler(output_handler)
+
+    default_cert_path = os.path.join(DEFAULT_USER_CONF_PATH, "ca-cert.crt")
+    default_key_path = os.path.join( DEFAULT_USER_CONF_PATH, "ca-key.pem")
 
     # Argument parsing
     parser = argparse.ArgumentParser(
@@ -46,10 +53,10 @@ def main(argv=None):
                         metavar="days")
     parser.add_argument("--version", action="version", version="%(prog)s 1.0")
     parser.add_argument("certFile", metavar="path", type=str, nargs="?",
-                        default="ca-cert.crt",
+                        default=default_cert_path,
                         help="where to save PEM-encoded certificate")
     parser.add_argument("keyFile", metavar="path", type=str, nargs="?",
-                        default="ca-key.pem",
+                        default=default_key_path,
                         help="where to save PEM-encoded key")
     args = parser.parse_args()
     output_handler.setLevel(args.output_level)
@@ -80,10 +87,21 @@ def main(argv=None):
     ext.set_critical()
     cert.add_ext(ext)
     cert.sign(key, 'sha1')
+
     output.info("Saving certificate to %s" % args.certFile)
-    cert.save_pem(args.certFile)
+    cert_path = os.path.expanduser(args.certFile)
+    cert_dir = os.path.dirname(cert_path)
+    if not os.path.exists(cert_dir):
+        os.makedirs(cert_dir, 0700)
+    cert.save_pem(cert_path)
+
     output.info("Saving private key to %s" % args.keyFile)
-    key.save_key(args.keyFile, cipher=None)  # cipher=None -> save in the clear
+    key_path = os.path.expanduser(args.keyFile)
+    key_dir = os.path.dirname(key_path)
+    if not os.path.exists(key_dir):
+        os.makedirs(key_dir, 0700)
+    key.save_key(key_path, cipher=None)  # cipher=None -> save in the clear
+
     output.info("Success.")
 
     return(0)
