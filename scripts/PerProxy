@@ -159,8 +159,8 @@ def main(argv=None):
                                                 os.path.expanduser(args.ca_key_file))
     Handler.checker = Checker(
         notaries_file = os.path.expanduser(args.notaries_file),
-        quorum_percentage=args.perspectives_quorum_percentage,
-        quorum_duration=args.perspectives_quorum_duration
+        quorum_percentage=int(args.perspectives_quorum_percentage),
+        quorum_duration=int(args.perspectives_quorum_duration)
         )
 
     if args.whitelist_filename is not None:
