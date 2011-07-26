@@ -19,8 +19,8 @@ CONF_FILES = [
 
 SCRIPT_PATH = os.path.join(DEFAULT_INSTALL_PATH, "bin")
 SCRIPT_FILES = [
-    "PerProxy.py",
-    "perproxy-create-ca.py",
+    "scripts/PerProxy",
+    "scripts/perproxy-create-ca",
 ]
 
 #
