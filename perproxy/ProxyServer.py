@@ -223,7 +223,7 @@ class Handler(SocketServer.BaseRequestHandler):
                         self.logger.debug("Ignoring read of None from %s" % instance)
                         continue
                     else:
-                        self.logger.info("Reach threshold (%d) for None reads" % none_read_count_threshold)
+                        self.logger.info("Reached threshold (%d) for None reads, treating as EOF" % none_read_count_threshold)
                         done = True
                         break
                 none_read_count = 0
