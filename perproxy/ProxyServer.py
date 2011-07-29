@@ -86,6 +86,7 @@ class Handler(SocketServer.BaseRequestHandler):
             return
         except ssl.SSLError as e:
             self.logger.error("Error starting SSL with client: %s" % str(e))
+            self.close()
             return
 
         if server_error:
@@ -99,7 +100,8 @@ class Handler(SocketServer.BaseRequestHandler):
             # passing through traffic.
             self.pass_through(server)
             server.close()
-        self.request.close()
+
+        self.close()
         self.logger.info("Done.")
 
     def connect_to_server(self, hostname, port):
@@ -140,6 +142,21 @@ class Handler(SocketServer.BaseRequestHandler):
         except PerspectivesException as e:
             self.logger.error("Perspectives check failed: %s" % str(e))
             raise
+
+    def close(self):
+        """Handle closing connection to client"""
+        # TODO: call clear() to close M2Crypto socket if there were errors.
+        # May be useful: http://www.openssl.org/docs/ssl/SSL_clear.html
+        self.logger.debug("Closing client connection")
+        self.request.close()
+        try:
+            # Close original (non-SSL) socket if it exists
+            # M2Crypto.SSL.Connection.close() only closes SSL connection,
+            # not underlying socket, per:
+            # http://reallylongword.org/projects/ftpslib/README
+            self.orig_request.close()
+        except AttributeError:
+            pass
 
     def send(self, msg):
         self.request.send(msg)
