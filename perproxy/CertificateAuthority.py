@@ -2,6 +2,7 @@
 
 from M2Crypto import EVP, m2, RSA, X509
 from threading import Lock
+import logging
 import os
 import tempfile
 import time
@@ -15,22 +16,29 @@ class CertificateAuthority:
     def __init__(self, cert, key,
                  serial_number = None,
                  service_key_length=2048):
+        self.logger = self.__get_logger()
+        self.logger.info("Initializing Certificate Authority")
         self.cert = cert
         self.key = key
         self.serial_number = serial_number \
             if serial_number is not None else int(time.time())
+        self.logger.debug("Starting serial number is %d" % self.serial_number)
         self.serial_number_lock = Lock()
         def null_callback(p,n):
             """Call back that does nothing to avoid printing to stdout"""
             pass
         # Key to use for all service certificates
+        self.logger.debug("Generating key")
         rsa_key = RSA.gen_key(service_key_length, m2.RSA_F4,
                               callback=null_callback)
         self.service_key = EVP.PKey()
         self.service_key.assign_rsa(rsa_key)
+        self.logger.debug("Certificate Authority initialized")
 
     @classmethod
     def from_file(cls, cert_file, key_file):
+        logger = cls.__get_logger()
+        logger.info("Loading CA from %s and %s" % (cert_file, key_file))
         cert = X509.load_cert(cert_file)
         key = EVP.load_key(key_file)
         return cls(cert, key)
@@ -40,9 +48,11 @@ class CertificateAuthority:
                             lifetime=24*60*60,
                             sign_hash="sha1"):
         """Get the SSL credentials for mimicing the given host in files."""
+        self.logger.debug("Generating credentials for %s" % hostname)
         cert, key = self.generate_ssl_credential(hostname,
                                                  lifetime=lifetime,
                                                  sign_hash=sign_hash)
+        self.logger.debug("DN is %s" % cert.get_subject().as_text())
         fd, cert_file = tempfile.mkstemp()
         os.close(fd)
         cert.save_pem(cert_file)
@@ -94,3 +104,12 @@ class CertificateAuthority:
             self.serial_number += 1
             next_serial_number = self.serial_number
         return next_serial_number
+
+    @classmethod
+    def __get_logger(cls):
+        try:
+            logger = cls.__logger
+        except AttributeError:
+            cls.__logger = logging.getLogger(cls.__name__)
+            logger = cls.__logger
+        return logger
