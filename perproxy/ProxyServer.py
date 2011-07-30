@@ -84,7 +84,7 @@ class Handler(SocketServer.BaseRequestHandler):
         except IOError as e:
             self.logger.error("Error responding to client: %s" % str(e))
             return
-        except ssl.SSLError as e:
+        except (ssl.SSLError, M2Crypto.SSL.SSLError) as e:
             self.logger.error("Error starting SSL with client: %s" % str(e))
             self.close()
             return
