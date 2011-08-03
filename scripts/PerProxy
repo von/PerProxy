@@ -14,10 +14,13 @@ import tempfile
 import threading
 import time
 
+from twisted.internet import reactor
+
 from perproxy import CertificateAuthority
 from perproxy import Checker
 from perproxy import DEFAULT_USER_CONF_PATH
-from perproxy import ProxyServer, Handler
+from perproxy import ProxyServerTLSContextFactory
+from perproxy import ProxyServerFactory
 from perproxy import WhiteList
 
 
@@ -178,23 +181,25 @@ def main(argv=None):
 
     output.debug("Loading CA from %s and %s" % (args.ca_cert_file,
                                                     args.ca_key_file))
-    Handler.ca = CertificateAuthority.from_file(os.path.expanduser(args.ca_cert_file),
-                                                os.path.expanduser(args.ca_key_file))
+
+    ca = CertificateAuthority.from_file(os.path.expanduser(args.ca_cert_file),
+                                        os.path.expanduser(args.ca_key_file))
+    ProxyServerTLSContextFactory.setCertificateAuthority(ca)
 
     notaries_file = args.notaries_file
     if notaries_file:
         notaries_file = os.path.expanduser(args.notaries_file)
 
-    Handler.checker = Checker(
-        notaries_file = notaries_file,
-        quorum_percentage=int(args.perspectives_quorum_percentage),
-        quorum_duration=int(args.perspectives_quorum_duration)
-        )
+    #Handler.checker = Checker(
+    #    notaries_file = notaries_file,
+    #    quorum_percentage=int(args.perspectives_quorum_percentage),
+    #    quorum_duration=int(args.perspectives_quorum_duration)
+    #    )
 
     if args.whitelist_filename is not None:
         output.debug("Loading whitelist from %s" % (args.whitelist_filename))
         wl = WhiteList.from_file(os.path.expanduser(args.whitelist_filename))
-        Handler.whitelist = wl
+        #Handler.whitelist = wl
 
     if args.error_template is None:
         output.debug("Loading error template from resources")
@@ -203,33 +208,20 @@ def main(argv=None):
         except IOError as e:
             output.error("Error reading error_template resource: " + str(e))
             sys.exit(1)
-        Handler.HTML_ERROR_TEMPLATE = get_resource("conf/error_template.html")
+        #Handler.HTML_ERROR_TEMPLATE = get_resource("conf/error_template.html")
     else:
         output.debug("Loading error template from %s" % (args.error_template))
         with open(os.path.expanduser(args.error_template)) as f:
-            Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
-
-    # Per M2Crypto FAQ
-    output.debug("Initializing M2Crypto threading")
-    M2Crypto.threading.init()
+            #Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
+            pass
 
     output.info("Starting proxy on %s port %s" % (args.proxy_hostname,
-                                                      args.proxy_port))
-    server = ProxyServer((args.proxy_hostname, args.proxy_port), Handler)
-    server_thread = threading.Thread(target=server.serve_forever)
-    server_thread.setDaemon(True)
-    server_thread.start()
-    output.info("Server thread started")
-
-    while True:
-        try:
-            time.sleep(100)
-        except KeyboardInterrupt as e:
-            output.info("Caught keyboard interrupt.")
-            break
+                                                  args.proxy_port))
+    # TODO: Use proxy_hostname here
+    reactor.listenTCP(args.proxy_port, ProxyServerFactory())
+    reactor.run()
 
     output.debug("Cleaning up.")
-    M2Crypto.threading.cleanup()
     output.debug("Exiting.")
     return(0)
 

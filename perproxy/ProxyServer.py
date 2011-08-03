@@ -1,341 +1,202 @@
 """ProxyServer and Handler class"""
 
-import BaseHTTPServer
-import errno
 import logging
-import select
-import ssl
-import socket
-import SocketServer
-import string
 
-import M2Crypto
+from OpenSSL import SSL
+from twisted.internet import ssl
+from twisted.internet.protocol import Factory
+from twisted.protocols import basic
+from twisted.web import http
 
-from Perspectives import PerspectivesException
-from Perspectives import Service
+from ProxyClient import ProxyConnector
 
-from Server import Server
+######################################################################
 
-# Not order of inherited classes here is important
-class ProxyServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    allow_reuse_address = True
+class ProxyServerTLSContextFactory(ssl.DefaultOpenSSLContextFactory):
+    def __init__(self, target_hostname):
+        self.target_hostname = target_hostname
+        # TODO: Check self.certificateAuthority != None
+        cert_file, key_file = self.certificateAuthority.get_ssl_credentials(target_hostname)
+        ssl.DefaultOpenSSLContextFactory.__init__(self,
+                                                  privateKeyFileName=key_file,
+                                                  certificateFileName=cert_file)
 
-    def handle_error(self, request, client_address):
-        """Handle an uncaught exception in handle()"""
-        logger = logging.getLogger(self.__class__.__name__)
-        logger.exception("Uncaught exception responding to %s" % client_address[0])
+    @classmethod
+    def setCertificateAuthority(cls, ca):
+        """Set the CA to use for generating certificates for MITM connections"""
+        cls.certificateAuthority = ca
 
-class Handler(SocketServer.BaseRequestHandler):
+######################################################################
 
-    ca = None
-    checker = None
-    whitelist = None
+class ProxyServer(basic.LineReceiver):
 
-    PROTOCOL_VERSION = "HTTP/1.1"
+    def __init__(self):
+        self.header = {}
+        self.firstLine = True
+        self.__header = None  # Last header line read to allow for
+                              # multi-line headers
+        self.logger = self.__getLogger()
+        self.server = None   # ProxyClient instance
 
-    AGENT_STRING = "SSL-MITM-1.0"
+    __logger = None
 
-    HTML_ERROR_TEMPLATE = None
+    @classmethod
+    def __getLogger(cls):
+        """Return our logger instance"""
+        if cls.__logger is None:
+            cls.__logger = logging.getLogger(cls.__name__)
+        return cls.__logger
 
-    def handle(self):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.info("Connection received.")
-        
-        hostname, port = self.parse_connect_command()
-        self.logger.info("Target is %s:%s" % (hostname, port))
-        self.logger = logging.LoggerAdapter(self.logger,
-                                            { "target" : hostname })
 
-        # Sending errors back in response to the CONNECT command
-        # doesn't work as browsers seem to ignore response code and
-        # accompanying text.
-        # 
-        # Instead we defer reporting the error to the client until
-        # after we establish an SSL connection with the client, and
-        # then we respond to the command from the client within the
-        # proxied connection.
-        server_error = None
-        try:
-            server = self.connect_to_server(hostname, port)
-        except PerspectivesException as e:
-            self.logger.error("Deferring handling error connecting to server: %s" % e)
-            server_error = e
-        except socket.gaierror as e:
-            server_error = "Unknown host \"%s\"" % hostname
-        except socket.error as e:
-            if e.errno == errno.ECONNREFUSED:
-                server_error = "Connection to \"%s\" refused." % hostname
-            else:
-                server_error = e
-        except Exception as e: 
-            self.logger.exception(e)
-            self.logger.error("Deferring handling error connecting to server: %s" % e)
-            server_error = e
+    def breakConnection(self):
+        """Break connection to client and server"""
+        self.logger.debug("Breaking connection on client side")
+        self.transport.loseConnection()
+        self.server = None
 
-        try:
-            cert_file, key_file = self.ca.get_ssl_credentials(hostname)
-            self.logger.debug("Responding to client.")
-            self.logger.debug("Cert = %s" % cert_file)
-            self.logger.debug("Key = %s" % key_file)
-            self.respond(200)
-            self.logger.debug("Starting SSL with client...")
-            self.start_ssl(key_file, cert_file)
-            self.logger.debug("SSL with client successful")
-        except IOError as e:
-            self.logger.error("Error responding to client: %s" % str(e))
-            return
-        except (ssl.SSLError, M2Crypto.SSL.SSLError) as e:
-            self.logger.error("Error starting SSL with client: %s" % str(e))
-            self.close()
-            return
+    def connectionMade(self):
+        """Handle connected client"""
+        self.logger.debug("ProxyServer started")
 
-        if server_error:
-            # We got an error of some sort during setup with server.
-            # Instead of connecting client to server, we're going to
-            # sent the client a hunk of html describing the error.
-            self.logger.info("Handling deferred server error: %s" % server_error)
-            self.handle_server_error(server_error)
+    def connectionLost(self, reason):
+        """Handle dropped connection"""
+        self.logger.debug("Connection to client lost: %s" % reason.getErrorMessage())
+        if self.server:
+            self.server.breakConnection()
+            self.server = None
+
+    def lineReceived(self, line):
+        """Parse command line and headers for request"""
+        if self.firstLine:
+            self.parseCommand(line)
+        elif not line or line == '':
+            # End of headers
+            self.endOfHeaders()
+            self.handleProxyCommand()
         else:
-            # Good connections with client and server, just start
-            # passing through traffic.
-            self.pass_through(server)
-            server.close()
+            self.parseHeader(line)
 
-        self.close()
-        self.logger.info("Done.")
+    def parseCommand(self, line):
+        """Parse command line"""
+        self.logger.debug("Parsing command: %s" % line)
+        self.firstLine = False
+        parts = line.split()
+        if len(parts) != 3:
+            self.respond(http.BAD_REQUEST)
+            self.transport.loseConnection()
+            return
+        self.command, self.target, self.version = parts
+        self.target_hostname, self.target_port = self.parseTarget(self.target)
 
-    def connect_to_server(self, hostname, port):
-        """Handle connection to desired server
-
-        Handles checking of certificate.
-
-        Return Server instance."""
+    def handleProxyCommand(self):
+        """Handle the command we've received from the client"""
+        if self.command != "CONNECT":
+            self.respond(http.BAD_REQUEST)
+            self.transport.loseConnection()
+            return
+        else:
+            self.connectToServer()
         
-        self.logger.info("Connecting to %s:%s" % (hostname, port))
-        try:
-            server = Server(hostname, port)
-        except Exception as e:
-            self.logger.error("Error connecting to %s:%s: %s" % (hostname,
-                                                                     port,
-                                                                     e))
-            raise
-
-        self.logger.debug("Server subject is %s" % (server.subject().as_text()))                             
-        self.check_server(server)
-        
-        self.logger.debug("Connection to server established")
-        return server
-
-    def check_server(self, server):
-        """Do checks on server."""
-        if self.whitelist:
-            self.logger.debug("Checking whitelist for %s" % (server.hostname))
-            if self.whitelist.contains(server.hostname):
-                self.logger.info("Server %s is on whitelist." % (server.hostname))
+    def parseHeader(self, line):
+        """Parse a header line"""
+        if line[0] in " \t":
+            # Continuation line
+            if self.__header is None:
+                self.logger.error("Got continuation line without prior line")
+                self.respond(http.BAD_REQUEST)
+                self.transport.loseConnection()
                 return
+            self.__header += "\n" + line
+        else:
+            if self.__header:
+                # Parse prior header received
+                self.headerReceived(self.__header)
+            self.__header = line
 
-        self.logger.info("Checking certificate with Perspectives")
-        try:
-            fingerprint = server.get_fingerprint()
-            service = Service(server.hostname, server.port)
-            self.checker.check_seen_fingerprint(service, fingerprint)
-        except PerspectivesException as e:
-            self.logger.error("Perspectives check failed: %s" % str(e))
-            raise
+    def headerReceived(self, header):
+        """Parse complete header"""
+        key, val = header.split(":", 1)
+        key = key.lower()
+        val = val.strip()
+        self.header[key] = val
 
-    def close(self):
-        """Handle closing connection to client"""
-        # TODO: call clear() to close M2Crypto socket if there were errors.
-        # May be useful: http://www.openssl.org/docs/ssl/SSL_clear.html
-        self.logger.debug("Closing client connection")
-        self.request.close()
-        try:
-            # Close original (non-SSL) socket if it exists
-            # M2Crypto.SSL.Connection.close() only closes SSL connection,
-            # not underlying socket, per:
-            # http://reallylongword.org/projects/ftpslib/README
-            self.orig_request.close()
-        except AttributeError:
-            pass
+    def endOfHeaders(self):
+        """All headers received"""
+        # Parse any pending header
+        if self.__header:
+            self.headerReceived(self.__header)
+            self.__header = None
 
-    def send(self, msg):
-        self.request.send(msg)
+    def rawDataReceived(self, data):
+        self.logger.debug("Read %d bytes" % len(data))
+        if self.server:
+            self.server.transport.write(data)
 
-    def sendall(self, msg):
-        self.request.sendall(msg)
-
-    def make_nonblocking(self):
-        self.request.setblocking(False)
-
-    def respond(self, code, msg=None):
-        """Respond to client with given code.
-
-        If msg is not provided, uses default for code."""
-        msg = msg if msg is not None else \
-            BaseHTTPServer.BaseHTTPRequestHandler.responses[code]
-        self.send("%s %s %s\n" % (self.PROTOCOL_VERSION,
-                                      code,
-                                      msg))
-        self.send("Proxy-agent: %s\n" % self.AGENT_STRING)
-        self.send("\n")
-
-    def start_ssl(self, key_file, cert_file):
-        """Start SSL with client."""
-        self.ssl_context = M2Crypto.SSL.Context("sslv3")
-        self.ssl_context.load_cert(certfile = cert_file,
-                                   keyfile = key_file)
-        ssl_sock = M2Crypto.SSL.Connection(self.ssl_context, self.request)
-        # Experimentally, these seem to be the right calls to have M2Crypto
-        # accept an SSL HandShake as a server on an existing socket.
-        ssl_sock.setup_ssl()
-        ssl_sock.accept_ssl()
-        self.orig_request = self.request
-        self.request = ssl_sock
-
-    def pass_through(self, server):
-        """Pass data back and forth between client and server"""
-        self.logger.info("Entering pass_through mode")
-        none_read_count_threshold = 5
-        self.make_nonblocking()
-        server.make_nonblocking()
-        # Mapping from sockets to instances
-        instances = {
-            self.request : self,
-            server.sock : server
-            }
-        socks = instances.keys()
-        # Mapping from instances to peers
-        peer = {
-            self : server,
-            server : self
-            }
-        done = False
-        none_read_count = 0
-        while not done:
-            (read_ready, write_ready, error) = select.select(socks,[], socks)
-            if len(error) != 0:
-                instance = instances[error[0]]
-                self.logger.info("Got exception from %s" % instance)
-                break
-            if len(read_ready) == 0:
-                self.logger.debug("select() returned without anything for us to do")
-                continue
-            for s in read_ready:
-                instance = instances[s]
-                self.logger.debug("Reading from %s" % instance)
-                try:
-                    data = instance.recvall()
-                except IOError as e:
-                    self.logger.error("Error reading from %s: %s" % (instance,
-                                                                         str(e)))
-                    done = True
-                    break
-                if data is None:
-                    # M2Crypto.SSL.Connection returns None sometimes.
-                    # This does not indicate an EOF.  Be done if we
-                    # see a lot of None reads in a row, might be causing
-                    # high CPU consumption problems.
-                    none_read_count += 1
-                    if none_read_count < none_read_count_threshold:
-                        self.logger.debug("Ignoring read of None from %s" % instance)
-                        continue
-                    else:
-                        self.logger.info("Reached threshold (%d) for None reads, treating as EOF" % none_read_count_threshold)
-                        done = True
-                        break
-                none_read_count = 0
-                if len(data) == 0:
-                    self.logger.info("Got EOF from %s" % instance)
-                    done = True
-                    break
-                out = peer[instance]
-                self.logger.debug("Writing %s bytes to %s" % (len(data),
-                                                                  out))
-                out.sendall(data)
-
-        self.logger.info("Pass through done.")
-
-    def handle_server_error(self, server_error):
-        """Handle a error connecting to the server.
-        
-        server_error can be an Exception or a string.
-
-        In stead of passing data back and forth, we mimic the server and
-        send back a web page describing the error."""
-        # First we read request and headers client meant to send to server
-        method, path, protocol, headers = self.read_header()
-        self.logger.debug("Client request was: %s %s %s" % (method,
-                                                                path,
-                                                                protocol))
-        # TODO: We may want to respond differently depending on information
-        #       in the headers. E.g., if the client isn't expecting HTML
-        #       then we don't send HTML (not sure what we should do).
-        self.respond(502, str(server_error))
-        values = {
-            "title" : str(server_error),
-            "error" : str(server_error),
-            }
-        template = string.Template(self.HTML_ERROR_TEMPLATE)
-        html = template.substitute(values)
-        self.send(html)
-        self.logger.debug("Error response sent.")
-        
-    def read_header(self):
-        """Read and return header
-
-        Return is (method, path, protocol, header_lines as a list of strings)"""
-        # First line is request: GET /foo HTTP/1.0
-        request = self.readline()
-        (method, path, protocol) = request.strip().split()
-        
-        # Followed by N header lines until a blank line
-        header_lines = []
-        while True:
-            line = self.readline()
-            if line.strip() == "":
-                break
-            header_lines.append(line)
-        return (method, path, protocol, header_lines)
-
-    def parse_connect_command(self):
-        """Parse a header which is expected to be a CONNECT command
-
-        Returns target_hostname and target_port."""
-        (method, path, protocol, header_lines) = self.read_header()
-        if method != "CONNECT":
-            raise IOError("Client sent unexpected command \"%s\"" % method)
-        hostname, port_str = path.split(":")
-        port = int(port_str)
-        return hostname, port
-
-    def readline(self):
-        line = ""
-        while line.find("\n") == -1:
-            line += self.request.recv(1)
-        return line
-
-    def recvall(self, buflen=8192):
-        """Given a non-blocking socket, read all panding data.
-
-        Socket can be ssl.SSLSocket or M2Crypto.SSL.Connection."""
-        chunks = []
-        while True:
+    def respond(self, status, msg=None):
+        if msg is None:
             try:
-                # SSLSocket will raise ssl.SSLError if no data pending
-                #           or return 0 bytes on EOF
-                self.logger.debug("recv()...")
-                data = self.request.recv(buflen)
-                if data is None:
-                    self.logger.debug("...returned None")
-                else:
-                    self.logger.debug("...returned %d bytes" % len(data))
-            except ssl.SSLError:
-                data = None
-            if data is None or len(data) == 0:
-                break
-            chunks.append(data)
-        return "".join(chunks)
+                msg = http.RESPONSES[status]
+            except IndexError:
+                msg = ""
+        self.logger.debug("Responding: %d %s" % (status, msg))
+        self.transport.write("HTTP/1.1 %d %s\r\n\r\n" % (status, msg))
 
-    def __str__(self):
-        return "client at %s:%s" % (self.client_address[0],
-                                        self.client_address[1])
+    def connectToServer(self):
+        """Start connection to server"""
+        # TODO: Pass headers along to server?
+        self.logger.debug("Creating connection to %s" % self.target)
+        ProxyConnector.connectToServer(self, self.target)
+        return
+
+    def serverConnectionEstablished(self, server):
+        """Called with connection to server successfully established."""
+        self.logger.debug("Connection to server made")
+        self.server = server
+        self.logger.debug("Responding to client and starting TLS")
+        self.respond(http.OK)
+        self.setRawMode()
+        # All data will be processed by rawDataReceived() from now on
+        self.startTLS()
+        # Now we just pass opaque data
+
+    def startTLS(self):
+        """Start TLS with client"""
+        ctxFactory = ProxyServerTLSContextFactory(self.target_hostname)
+        self.transport.startTLS(ctxFactory, ProxyServerFactory())
+
+    @classmethod
+    def parseTarget(cls, target, defaultPort = 443):
+        """Parse target, returning host and port"""
+        if ":" in target:
+            host, port = target.split(":")
+            port = int(port)
+        else:
+            host = target
+            port = defaultPort
+        return host, port
+
+######################################################################
+
+class ProxyServerFactory(Factory):
+    __logger = None
+
+    @classmethod
+    def __getLogger(cls):
+        if cls.__logger is None:
+            cls.__logger = logging.getLogger(cls.__name__)
+        return cls.__logger
+
+    def startFactory(self):
+        logger = self.__getLogger()
+        logger.debug("ProxyServerFactory started")
+
+    def stopFactory(self):
+        logger = self.__getLogger()
+        logger.debug("ProxyServerFactory stopped")
+
+    protocol = ProxyServer 
+    
+    def buildProtocol(self, addr):
+        logger = self.__getLogger()
+        logger.info("Got conection from %s:%d" % (addr.host, addr.port))
+        return self.protocol()
