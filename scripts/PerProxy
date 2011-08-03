@@ -115,10 +115,10 @@ def parse_args(argv):
 
 def setup_logging(args):
     """Set up logigng via logging module"""
-    if not os.path.exists(args.logging_config):
+    if not os.path.exists(os.path.expanduser(args.logging_config)):
         raise ValueError("Logging configuration file %s does not exist" % (args.logging_config))
     try:
-        logging.config.fileConfig(args.logging_config)
+        logging.config.fileConfig(os.path.expanduser(args.logging_config))
     except ConfigParser.Error as e:
         raise Exception("Error parsing logging configuration file %s: %s" % (args.logging_config, str(e)))
     if args.debug:
