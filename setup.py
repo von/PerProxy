@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import os.path
-from setuptools import setup, find_packages
+try:
+    from setuptools import setup
+except:
+    from distutils.core import setup
 
 from perproxy import DEFAULT_INSTALL_PATH, DEFAULT_USER_CONF_PATH, VERSION
 
