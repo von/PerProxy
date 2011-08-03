@@ -7,6 +7,7 @@ import ConfigParser
 import logging
 import logging.config
 import os.path
+import pkgutil
 import sys
 import threading
 import time
@@ -45,7 +46,7 @@ def parse_args(argv):
     defaults = {
         "ca_cert_file" : os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH, "ca-cert.crt")),
         "ca_key_file" :  os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH,"ca-key.pem")),
-        "error_template" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "error_template.html"),
+        "error_template" : None,
         "logging_config" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "logging.config"),
         "notaries_file" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "http_notary_list.txt"),
         "perspectives_quorum_duration" : 86400,  # One day
@@ -129,6 +130,10 @@ def setup_logging(args):
         root_logger.setLevel(logging.DEBUG)
         root_logger.addHandler(root_handler)
 
+def get_resource(resource):
+    """Return contents of given resource from installed package"""
+    return pkgutil.get_data("perproxy", resource)
+
 def main(argv=None):
     # Do argv default this way, as doing it in the functional
     # declaration sets it at compile time.
@@ -168,10 +173,18 @@ def main(argv=None):
         wl = WhiteList.from_file(os.path.expanduser(args.whitelist_filename))
         Handler.whitelist = wl
 
-    output.debug("Loading error template from %s" % (args.error_template))
-
-    with open(os.path.expanduser(args.error_template)) as f:
-        Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
+    if args.error_template is None:
+        output.debug("Loading error template from resources")
+        try:
+            template = get_resource("conf/error_template.html")
+        except IOError as e:
+            output.error("Error reading error_template resource: " + str(e))
+            sys.exit(1)
+        Handler.HTML_ERROR_TEMPLATE = get_resource("conf/error_template.html")
+    else:
+        output.debug("Loading error template from %s" % (args.error_template))
+        with open(os.path.expanduser(args.error_template)) as f:
+            Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
 
     # Per M2Crypto FAQ
     output.debug("Initializing M2Crypto threading")
