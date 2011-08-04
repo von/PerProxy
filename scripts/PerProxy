@@ -33,8 +33,6 @@ def parse_args(argv):
         )
     default_config_paths = [
         os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH, "config")),
-        os.path.expanduser(os.path.join(DEFAULT_INSTALL_PATH,
-                                        "etc", "PerProxy.conf"))
         ]
     for default_config_path in default_config_paths:
         if os.path.exists(default_config_path):
@@ -175,6 +173,8 @@ def main(argv=None):
 
     if args.conf_file:
         output.debug("Using configuration from %s" % (args.conf_file))
+    else:
+        output.debug("Using default configuration")
 
     output.debug("Initializing Perspectives checker with notaries from %s" % (args.notaries_file))
 

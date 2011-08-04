@@ -11,7 +11,6 @@ from perproxy import DEFAULT_INSTALL_PATH, DEFAULT_USER_CONF_PATH, VERSION
 
 CONF_PATH = os.path.join(DEFAULT_INSTALL_PATH, "etc")
 CONF_FILES = [
-    "conf/PerProxy.conf",
     "conf/http_notary_list.txt",
     ]
 
