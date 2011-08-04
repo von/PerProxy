@@ -6,9 +6,11 @@ import argparse
 import ConfigParser
 import logging
 import logging.config
+import os
 import os.path
 import pkgutil
 import sys
+import tempfile
 import threading
 import time
 
@@ -47,7 +49,7 @@ def parse_args(argv):
         "ca_cert_file" : os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH, "ca-cert.crt")),
         "ca_key_file" :  os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH,"ca-key.pem")),
         "error_template" : None,
-        "logging_config" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "logging.config"),
+        "logging_config" : None,
         "notaries_file" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "http_notary_list.txt"),
         "perspectives_quorum_duration" : 86400,  # One day
         "perspectives_quorum_percentage" : 75,
@@ -116,12 +118,26 @@ def parse_args(argv):
 
 def setup_logging(args):
     """Set up logigng via logging module"""
-    if not os.path.exists(os.path.expanduser(args.logging_config)):
-        raise ValueError("Logging configuration file %s does not exist" % (args.logging_config))
-    try:
-        logging.config.fileConfig(os.path.expanduser(args.logging_config))
-    except ConfigParser.Error as e:
-        raise Exception("Error parsing logging configuration file %s: %s" % (args.logging_config, str(e)))
+    if args.logging_config is None:
+        # Copy default logging config from resource to temporary file
+        temp_fd, temp_filename = tempfile.mkstemp()
+        os.close(temp_fd)
+        with open(temp_filename, "w") as f:
+            f.write(get_resource("conf/logging.config"))
+        try:
+            logging.config.fileConfig(temp_filename)
+        except ConfigParser.Error as e:
+            raise Exception("Error parsing default logging configuration: %s" % str(e))
+        finally:
+            os.unlink(temp_filename)
+    else:
+        if not os.path.exists(os.path.expanduser(args.logging_config)):
+            raise ValueError("Logging configuration file %s does not exist" % (args.logging_config))
+        try:
+            logging.config.fileConfig(os.path.expanduser(args.logging_config))
+        except ConfigParser.Error as e:
+            raise Exception("Error parsing logging configuration file %s: %s" % (args.logging_config, str(e)))
+
     if args.debug:
         # Set up exact output handler to send all logs to Stdout
         root_logger = logging.getLogger()
@@ -129,6 +145,10 @@ def setup_logging(args):
         root_handler.setFormatter(logging.Formatter("PerProxy: %(message)s"))
         root_logger.setLevel(logging.DEBUG)
         root_logger.addHandler(root_handler)
+        if args.logging_config:
+            root_logger.debug("Logging initialized from %s" % args.logging_config)
+        else:
+            root_logger.debug("Logging initialized from default configuration")
 
 def get_resource(resource):
     """Return contents of given resource from installed package"""

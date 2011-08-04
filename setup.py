@@ -13,7 +13,6 @@ CONF_PATH = os.path.join(DEFAULT_INSTALL_PATH, "etc")
 CONF_FILES = [
     "conf/PerProxy.conf",
     "conf/http_notary_list.txt",
-    "conf/logging.config",
     ]
 
 #
@@ -33,7 +32,10 @@ setup(
     version = VERSION,
     packages = [ "perproxy" ],
     # Files in package_data must also appear in MANIFEST.in
-    package_data = { "perproxy" : [ "conf/error_template.html" ] },
+    package_data = { "perproxy" : [
+            "conf/error_template.html",
+            "conf/logging.config",
+            ] },
     data_files = [
         (CONF_PATH, CONF_FILES),
         (SCRIPT_PATH, SCRIPT_FILES),
