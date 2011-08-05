@@ -5,14 +5,7 @@ try:
 except:
     from distutils.core import setup
 
-from perproxy import DEFAULT_INSTALL_PATH, DEFAULT_USER_CONF_PATH, VERSION
-
-# Our configuration files
-
-CONF_PATH = os.path.join(DEFAULT_INSTALL_PATH, "etc")
-CONF_FILES = [
-    "conf/http_notary_list.txt",
-    ]
+from perproxy import DEFAULT_INSTALL_PATH, VERSION
 
 #
 # Our scripts
@@ -36,9 +29,9 @@ setup(
             "conf/logging.config",
             ] },
     data_files = [
-        (CONF_PATH, CONF_FILES),
         (SCRIPT_PATH, SCRIPT_FILES),
         ],
+    install_requires=['pyPerspectives >= 0.2'],
 
     author = "Von Welch",
     author_email = "von@vwelch.com",

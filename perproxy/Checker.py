@@ -71,9 +71,12 @@ class Checker:
             else ServiceCache()
         # Age at which entry in cache is stale and ignored
         self.cache_stale_age = 24 * 3600
-        notaries_file = notaries_file if notaries_file is not None \
-            else "./http_notary_list.txt"
-        self.notaries = Notaries.from_file(notaries_file)
+        if notaries_file:
+            self.logger.debug("Reading notaries from %s" % notaries_file)
+            self.notaries = Notaries.from_file(notaries_file)
+        else:
+            self.logger.debug("Using default notaries")
+            self.notaries = Notaries.default()
         self.quorum = int(len(self.notaries) * quorum_percentage / 100)
         self.logger.debug(
             "%d notaries, quorum is %d (%d%%)" % (len(self.notaries),

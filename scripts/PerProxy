@@ -48,7 +48,7 @@ def parse_args(argv):
         "ca_key_file" :  os.path.expanduser(os.path.join(DEFAULT_USER_CONF_PATH,"ca-key.pem")),
         "error_template" : None,
         "logging_config" : None,
-        "notaries_file" : os.path.join(DEFAULT_INSTALL_PATH, "etc", "http_notary_list.txt"),
+        "notaries_file" : None,
         "perspectives_quorum_duration" : 86400,  # One day
         "perspectives_quorum_percentage" : 75,
         "proxy_hostname" : "localhost",
@@ -182,8 +182,13 @@ def main(argv=None):
                                                     args.ca_key_file))
     Handler.ca = CertificateAuthority.from_file(os.path.expanduser(args.ca_cert_file),
                                                 os.path.expanduser(args.ca_key_file))
+
+    notaries_file = args.notaries_file
+    if notaries_file:
+        notaries_file = os.path.expanduser(args.notaries_file)
+
     Handler.checker = Checker(
-        notaries_file = os.path.expanduser(args.notaries_file),
+        notaries_file = notaries_file,
         quorum_percentage=int(args.perspectives_quorum_percentage),
         quorum_duration=int(args.perspectives_quorum_duration)
         )

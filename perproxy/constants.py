@@ -2,7 +2,7 @@
 
 Used by PerProxy scripts and setup.py"""
 
-VERSION="0.1"
+VERSION="0.2"
 
 # Default installation location
 DEFAULT_INSTALL_PATH="/usr/local/perproxy"
