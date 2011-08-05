@@ -5,13 +5,12 @@ try:
 except:
     from distutils.core import setup
 
-from perproxy import DEFAULT_INSTALL_PATH, VERSION
+from perproxy import VERSION
 
 #
 # Our scripts
 
-SCRIPT_PATH = os.path.join(DEFAULT_INSTALL_PATH, "bin")
-SCRIPT_FILES = [
+SCRIPTS = [
     "scripts/PerProxy",
     "scripts/perproxy-create-ca",
 ]
@@ -28,9 +27,7 @@ setup(
             "conf/error_template.html",
             "conf/logging.config",
             ] },
-    data_files = [
-        (SCRIPT_PATH, SCRIPT_FILES),
-        ],
+    scripts = SCRIPTS,
     install_requires=['pyPerspectives >= 0.2'],
 
     author = "Von Welch",
