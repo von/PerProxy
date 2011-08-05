@@ -21,7 +21,7 @@ Prerequisites:
 * argparse: https://code.google.com/p/argparse/  - comes with Python 2.7+
 
 * pyPerspecties: https://github.com/von/pyPerspectives - python client
-code for Perspectives.
+code for Perspectives. Version 0.2 or later required.
 
 --------------------
 
@@ -29,11 +29,13 @@ To install, run:
 
 sudo setup.py install
 
-Which will install PerProxy into /usr/local/perproxy
+Which will install the perproxy into your local site-packages and the
+PerProxy scipts into the appropriate python bin/ directory
+(e.g. /Library/Frameworks/Python.framework/Versions/2.7/bin/)
 
-The next step is to create a CA certificate for it to use:
+The next step is to create a CA certificate for PerProxy to use:
 
-/usr/local/perproxy/bin/perproxy-create-ca
+ /Library/Frameworks/Python.framework/Versions/2.7/bin/perproxy-create-ca
 
 This will create ~/.PerProxy/ca-cert.crt and ~/.PerProxy/ca-key.pem
 
@@ -48,7 +50,7 @@ And you will be prompted and walked through the process.
 Then you can fire up PerProxy (use '-d' for debug mode will probably
 be most useful):
 
-/usr/local/perproxy/bin/PerProxy -d
+/Library/Frameworks/Python.framework/Versions/2.7/bin/PerProxy -d
 
 Then configure your web browser to use port localhost:8080 as a HTTPS
 proxy. With FireFox this is under Preferences, Advanced, Network,
@@ -83,10 +85,10 @@ below) and the connection is closed.
 passed through between the two.
 
 Note: All error handling is very rudimentary right now. PerProxy will
-print logs as things happen to stdout and a HTML web page is returned
-to the client. The HTML will be displayed only for primary pages
-though, if the request is for an image or other element of a page, it
-likely gets swallowed by the browser.
+logs errors and a HTML web page is returned to the client. The HTML
+will be displayed only for primary pages though, if the request is for
+an image or other element of a page, it likely gets swallowed by the
+browser.
 
 --------------------
 
