@@ -16,7 +16,6 @@ import time
 
 from perproxy import CertificateAuthority
 from perproxy import Checker
-from perproxy import DEFAULT_INSTALL_PATH
 from perproxy import DEFAULT_USER_CONF_PATH
 from perproxy import ProxyServer, Handler
 from perproxy import WhiteList
@@ -73,7 +72,6 @@ def parse_args(argv):
             (("Whitelist", "Filename"), "whitelist_filename"),
             ]
         config_default = {
-            "InstallPath" : DEFAULT_INSTALL_PATH,
             "UserConfigPath" : DEFAULT_USER_CONF_PATH,
             }
         config = ConfigParser.SafeConfigParser(config_default)

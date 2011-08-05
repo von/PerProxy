@@ -5,4 +5,4 @@ from Checker import Checker
 from ProxyServer import ProxyServer, Handler
 from WhiteList import WhiteList
 
-from constants import DEFAULT_INSTALL_PATH, DEFAULT_USER_CONF_PATH, VERSION
+from constants import DEFAULT_USER_CONF_PATH, VERSION
