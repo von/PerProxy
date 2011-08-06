@@ -35,6 +35,7 @@ class ProxyServer(basic.LineReceiver):
         self.firstLine = True
         self.__header = None  # Last header line read to allow for
                               # multi-line headers
+        self._state = _ReadingCommandState
         self.logger = self.__getLogger()
         self.server = None   # ProxyClient instance
 
@@ -67,14 +68,8 @@ class ProxyServer(basic.LineReceiver):
 
     def lineReceived(self, line):
         """Parse command line and headers for request"""
-        if self.firstLine:
-            self.parseCommand(line)
-        elif not line or line == '':
-            # End of headers
-            self.endOfHeaders()
-            self.handleProxyCommand()
-        else:
-            self.parseHeader(line)
+        self.logger.debug("Received line")
+        self._state.lineReceived(self, line)
 
     def parseCommand(self, line):
         """Parse command line"""
@@ -129,8 +124,7 @@ class ProxyServer(basic.LineReceiver):
 
     def rawDataReceived(self, data):
         self.logger.debug("Read %d bytes" % len(data))
-        if self.server:
-            self.server.transport.write(data)
+        self._state.rawDataReceived(self, data)
 
     def respond(self, status, msg=None):
         if msg is None:
@@ -158,6 +152,7 @@ class ProxyServer(basic.LineReceiver):
         # All data will be processed by rawDataReceived() from now on
         self.startTLS()
         # Now we just pass opaque data
+        self._state = _PassThroughState
 
     def startTLS(self):
         """Start TLS with client"""
@@ -174,6 +169,11 @@ class ProxyServer(basic.LineReceiver):
             host = target
             port = defaultPort
         return host, port
+
+    def writeToServer(self, data):
+        """Write data to server, if we have connection"""
+        if self.server:
+            self.server.transport.write(data)
 
 ######################################################################
 
@@ -200,3 +200,42 @@ class ProxyServerFactory(Factory):
         logger = self.__getLogger()
         logger.info("Got conection from %s:%d" % (addr.host, addr.port))
         return self.protocol()
+
+######################################################################
+
+class _State:
+    """Base class for ProxyServer states"""
+
+    @classmethod
+    def lineReceived(cls, server, line):
+        raise NotImplementedError("lineReceived() method not implemented for state")
+
+    @classmethod
+    def rawDataReceived(cls, server, data):
+        raise NotImplementedError("rawDataReceived() method not implemented for state")
+
+class _ReadingCommandState:
+    """Reading first line which contains command"""
+
+    @classmethod
+    def lineReceived(cls, server, line):
+        server.parseCommand(line)
+        server._state = _ReadingHeaderState
+
+class _ReadingHeaderState:
+    """Reading header following command"""
+
+    @classmethod
+    def lineReceived(cls, server, line):
+        if not line or line == '':
+            server.endOfHeaders()
+            server.connectToServer()
+        else:
+            server.parseHeader(line)
+
+class _PassThroughState:
+    """Just passing data between client and server"""
+    @classmethod
+    def rawDataReceived(cls, server, data):
+        server.writeToServer(data)
+
