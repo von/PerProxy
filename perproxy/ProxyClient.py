@@ -123,3 +123,4 @@ class ProxyClientFactory(ClientFactory):
     def clientConnectionFailed(self, connector, reason):
         self.logger.info("Connection to %s failed. Reason: %s" % (self.target,
                                                                   reason))
+        self.client.serverConnectionFailed(reason)

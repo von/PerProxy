@@ -154,6 +154,30 @@ class ProxyServer(basic.LineReceiver):
         # Now we just pass opaque data
         self._state = _PassThroughState
 
+    def serverConnectionFailed(self, error):
+        """Called when connection to server failed.
+
+        Error should be Reason."""
+        self.logger.info("Connection to server failed: %s" % str(error))
+        self._server_error = error
+        self.respond(http.OK)
+        # All data will be processed by rawDataReceived() from now on
+        self.startTLS()
+        # Clear headers from original command as we'll be reading new
+        # ones from intercepted request
+        self.header = {}
+        # Now we read request from client and respond with HTML error
+        self._state = _ServerErrorReadRequestState
+
+    def respondWithServerError(self):
+        """Respond with HTML to client containing server error"""
+        # TODO: Look at headers and see if client is expecting HTML
+        #       And do what if it isn't?
+        self.logger.debug("Responding with Server error: %s" % self._server_error.getErrorMessage())
+        self.respond(http.BAD_GATEWAY)
+        self.transport.write("SERVER ERROR: %s" % self._server_error.getErrorMessage())
+        self.transport.loseConnection()
+
     def startTLS(self):
         """Start TLS with client"""
         ctxFactory = ProxyServerTLSContextFactory(self.target_hostname)
@@ -239,3 +263,19 @@ class _PassThroughState:
     def rawDataReceived(cls, server, data):
         server.writeToServer(data)
 
+class _ServerErrorReadRequestState:
+    """Intercept request from client to server"""
+    @classmethod
+    def lineReceived(cls, server, line):
+        server.parseCommand(line)
+        server._state = _ServerErrorReadHeaderState
+
+class _ServerErrorReadHeaderState:
+    """Intercept headers from client to server"""
+    @classmethod
+    def lineReceived(cls, server, line):
+        if not line or line == '':
+            server.endOfHeaders()
+            server.respondWithServerError()
+        else:
+            server.parseHeader(line)
