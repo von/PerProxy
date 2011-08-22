@@ -204,6 +204,11 @@ class ProxyServer(basic.LineReceiver):
 class ProxyServerFactory(Factory):
     __logger = None
 
+    # List of allowed clients
+    allowed_clients = [
+        "127.0.0.1"  # Localhost
+        ]
+
     @classmethod
     def __getLogger(cls):
         if cls.__logger is None:
@@ -223,6 +228,9 @@ class ProxyServerFactory(Factory):
     def buildProtocol(self, addr):
         logger = self.__getLogger()
         logger.info("Got conection from %s:%d" % (addr.host, addr.port))
+        if addr.host not in self.allowed_clients:
+            logger.error("Rejected connection from client at %s:%d" % (addr.host, addr.port))
+            return None
         return self.protocol()
 
 ######################################################################
