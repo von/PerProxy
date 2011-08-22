@@ -19,6 +19,7 @@ from twisted.internet import reactor
 from perproxy import CertificateAuthority
 from perproxy import Checker
 from perproxy import DEFAULT_USER_CONF_PATH
+from perproxy import ProxyServer
 from perproxy import ProxyServerTLSContextFactory
 from perproxy import ProxyServerFactory
 from perproxy import WhiteList
@@ -208,12 +209,11 @@ def main(argv=None):
         except IOError as e:
             output.error("Error reading error_template resource: " + str(e))
             sys.exit(1)
-        #Handler.HTML_ERROR_TEMPLATE = get_resource("conf/error_template.html")
+        ProxyServer.setErrorTemplate(get_resource("conf/error_template.html"))
     else:
         output.debug("Loading error template from %s" % (args.error_template))
         with open(os.path.expanduser(args.error_template)) as f:
-            #Handler.HTML_ERROR_TEMPLATE = "".join(f.readlines())
-            pass
+            ProxyServer.setErrorTemplate("".join(f.readlines()))
 
     output.info("Starting proxy on %s port %s" % (args.proxy_hostname,
                                                   args.proxy_port))

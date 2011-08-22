@@ -1,6 +1,7 @@
-"""ProxyServer and Handler class"""
+"""ProxyServer class: Handles connection to client"""
 
 import logging
+import string
 
 from OpenSSL import SSL
 from twisted.internet import ssl
@@ -29,6 +30,8 @@ class ProxyServerTLSContextFactory(ssl.DefaultOpenSSLContextFactory):
 ######################################################################
 
 class ProxyServer(basic.LineReceiver):
+
+    _error_template = "SERVER ERROR: ${error}"
 
     def __init__(self):
         self.header = {}
@@ -173,9 +176,17 @@ class ProxyServer(basic.LineReceiver):
         """Respond with HTML to client containing server error"""
         # TODO: Look at headers and see if client is expecting HTML
         #       And do what if it isn't?
-        self.logger.debug("Responding with Server error: %s" % self._server_error.getErrorMessage())
+        error_message = self._server_error.getErrorMessage()
+        self.logger.debug("Responding with Server error: %s" % error_message)
         self.respond(http.BAD_GATEWAY)
-        self.transport.write("SERVER ERROR: %s" % self._server_error.getErrorMessage())
+        values = {
+            "title" : error_message,
+            "error" : error_message,
+            }
+        template = string.Template(self._error_template)
+        html = template.substitute(values)
+        self.transport.write(html)
+        self.logger.debug("Error response sent.")
         self.transport.loseConnection()
 
     def startTLS(self):
@@ -198,6 +209,11 @@ class ProxyServer(basic.LineReceiver):
         """Write data to server, if we have connection"""
         if self.server:
             self.server.transport.write(data)
+
+    @classmethod
+    def setErrorTemplate(cls, template):
+        """Set error template for reporting errors to client"""
+        cls._error_template = template
 
 ######################################################################
 
