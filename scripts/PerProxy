@@ -18,9 +18,9 @@ from twisted.internet import reactor
 
 from perproxy import CertificateAuthority
 from perproxy import Checker
+from perproxy import Configuration
 from perproxy import DEFAULT_USER_CONF_PATH
 from perproxy import ProxyServer
-from perproxy import ProxyServerTLSContextFactory
 from perproxy import ProxyServerFactory
 from perproxy import WhiteList
 
@@ -173,6 +173,8 @@ def main(argv=None):
     if args.debug:
         output.debug("Running in DEBUG mode")
 
+    perproxy_conf = Configuration()
+
     if args.conf_file:
         output.debug("Using configuration from %s" % (args.conf_file))
     else:
@@ -185,7 +187,7 @@ def main(argv=None):
 
     ca = CertificateAuthority.from_file(os.path.expanduser(args.ca_cert_file),
                                         os.path.expanduser(args.ca_key_file))
-    ProxyServerTLSContextFactory.setCertificateAuthority(ca)
+    perproxy_conf["CA"] = ca
 
     notaries_file = args.notaries_file
     if notaries_file:
@@ -218,7 +220,7 @@ def main(argv=None):
     output.info("Starting proxy on %s port %s" % (args.proxy_hostname,
                                                   args.proxy_port))
     # TODO: Use proxy_hostname here
-    reactor.listenTCP(args.proxy_port, ProxyServerFactory())
+    reactor.listenTCP(args.proxy_port, ProxyServerFactory(perproxy_conf))
     reactor.run()
 
     output.debug("Cleaning up.")

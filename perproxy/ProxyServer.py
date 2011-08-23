@@ -14,18 +14,11 @@ from ProxyClient import ProxyConnector
 ######################################################################
 
 class ProxyServerTLSContextFactory(ssl.DefaultOpenSSLContextFactory):
-    def __init__(self, target_hostname):
-        self.target_hostname = target_hostname
-        # TODO: Check self.certificateAuthority != None
-        cert_file, key_file = self.certificateAuthority.get_ssl_credentials(target_hostname)
+    def __init__(self, ca, target_hostname):
+        cert_file, key_file = ca.get_ssl_credentials(target_hostname)
         ssl.DefaultOpenSSLContextFactory.__init__(self,
                                                   privateKeyFileName=key_file,
                                                   certificateFileName=cert_file)
-
-    @classmethod
-    def setCertificateAuthority(cls, ca):
-        """Set the CA to use for generating certificates for MITM connections"""
-        cls.certificateAuthority = ca
 
 ######################################################################
 
@@ -33,7 +26,9 @@ class ProxyServer(basic.LineReceiver):
 
     _error_template = "SERVER ERROR: ${error}"
 
-    def __init__(self):
+    def __init__(self, conf):
+        """conf must be a Configuration instance"""
+        self.conf = conf
         self.header = {}
         self.firstLine = True
         self.__header = None  # Last header line read to allow for
@@ -142,7 +137,7 @@ class ProxyServer(basic.LineReceiver):
         """Start connection to server"""
         # TODO: Pass headers along to server?
         self.logger.debug("Creating connection to %s" % self.target)
-        ProxyConnector.connectToServer(self, self.target)
+        ProxyConnector.connectToServer(self, self.conf, self.target)
         return
 
     def serverConnectionEstablished(self, server):
@@ -191,8 +186,9 @@ class ProxyServer(basic.LineReceiver):
 
     def startTLS(self):
         """Start TLS with client"""
-        ctxFactory = ProxyServerTLSContextFactory(self.target_hostname)
-        self.transport.startTLS(ctxFactory, ProxyServerFactory())
+        ctxFactory = ProxyServerTLSContextFactory(self.conf["CA"],
+                                                  self.target_hostname)
+        self.transport.startTLS(ctxFactory)
 
     @classmethod
     def parseTarget(cls, target, defaultPort = 443):
@@ -225,6 +221,10 @@ class ProxyServerFactory(Factory):
         "127.0.0.1"  # Localhost
         ]
 
+    def __init__(self, conf):
+        """conf must be a Configuration instance"""
+        self.conf = conf
+
     @classmethod
     def __getLogger(cls):
         if cls.__logger is None:
@@ -247,7 +247,7 @@ class ProxyServerFactory(Factory):
         if addr.host not in self.allowed_clients:
             logger.error("Rejected connection from client at %s:%d" % (addr.host, addr.port))
             return None
-        return self.protocol()
+        return self.protocol(self.conf)
 
 ######################################################################
 

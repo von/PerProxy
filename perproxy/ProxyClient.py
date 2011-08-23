@@ -23,12 +23,16 @@ class ProxyConnector:
         return cls.__logger
     
     @classmethod
-    def connectToServer(cls, client, target):
-        """Make connection to server at target from client"""
+    def connectToServer(cls, client, conf, target):
+        """Make connection to server at target from client
+
+        client must be a ProxyServer instance
+        conf must be a Configuration insance
+        target is a string of the form: hostname[:port]"""
         logger = cls.__getLogger()
         host, port = cls.parseTarget(target)
         logger.info("Creating connection to server: %s port %d" % (host, port))
-        factory = ProxyClientFactory(client, target)
+        factory = ProxyClientFactory(client, conf, target)
         ctxFactory = ProxyClientTLSContextFactory()
         reactor.connectSSL(host, port, factory, ctxFactory)
 
@@ -54,8 +58,9 @@ class ProxyClientTLSContextFactory(ssl.ClientContextFactory):
 
 class ProxyClient(Protocol):
 
-    def __init__(self, client, target):
+    def __init__(self, client, conf, target):
         self.client = client
+        self.conf = conf
         self.target = target
         self.logger = self.__getLogger()
 
@@ -98,8 +103,9 @@ class ProxyClientFactory(ClientFactory):
     
     protocol = ProxyClient
 
-    def __init__(self, client, target):
+    def __init__(self, client, conf, target):
         self.client = client
+        self.conf = conf
         self.target = target
         self.logger = self.__getLogger()
 
@@ -115,7 +121,7 @@ class ProxyClientFactory(ClientFactory):
         self.logger.debug("Starting connection to %s" % self.target)
 
     def buildProtocol(self, addr):
-        return self.protocol(self.client, self.target)
+        return self.protocol(self.client, self.conf, self.target)
 
     def clientConnectionLost(self, connector, reason):
         self.logger.info("Lost connection to server: %s" % reason.getErrorMessage())

@@ -2,6 +2,7 @@
 
 from CertificateAuthority import CertificateAuthority
 from Checker import Checker
+from Configuration import Configuration
 from ProxyClient import ProxyConnector
 from ProxyServer import ProxyServer
 from ProxyServer import ProxyServerFactory
