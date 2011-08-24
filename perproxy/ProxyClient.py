@@ -4,6 +4,7 @@ import logging
 from OpenSSL import SSL
 from twisted.internet import reactor, ssl
 from twisted.internet.protocol import ClientFactory, Protocol
+from twisted.internet.ssl import Certificate
 
 ######################################################################
 #
@@ -51,8 +52,33 @@ class ProxyConnector:
 class ProxyClientTLSContextFactory(ssl.ClientContextFactory):
     isClient = 1
 
+    __logger = None
+
+    @classmethod
+    def __getLogger(cls):
+        """Return our logger instance"""
+        if cls.__logger is None:
+            cls.__logger = logging.getLogger(cls.__name__)
+        return cls.__logger
+
     def getContext(self):
-        return SSL.Context(SSL.TLSv1_METHOD)
+        logger = self.__getLogger()
+        ctx = SSL.Context(SSL.TLSv1_METHOD)
+        def _verifyCallback(conn, cert, errno, depth, preverify_ok):
+            return preverify_ok
+        ctx.set_verify(SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT, _verifyCallback)
+        def _infoCallback(conn, where, ret):
+            # conn is OpenSSL.SSL.Connection
+            # See http://www.openssl.org/docs/ssl/SSL_CTX_set_info_callback.html
+            logger.debug("infoCallback %s %d %d" % (conn, where, ret))
+            if where & SSL.SSL_CB_HANDSHAKE_START:
+                logger.debug("Handshake started")
+            if where & SSL.SSL_CB_HANDSHAKE_DONE:
+                logger.debug("Handshake done")
+            pass
+        ctx.set_info_callback(_infoCallback)
+        ctx.set_verify_depth(0)
+        return ctx
 
 ######################################################################
 
@@ -75,8 +101,25 @@ class ProxyClient(Protocol):
 
     def connectionMade(self):
         """Handle completed connection"""
+        # Note, this doesn't mean the TLS handshake has been completed.
+        # Attempts to get the peer certificate here will fail.
         self.logger.debug("Connection to %s made" % self.target)
+        # DEBUG - should be SSL.Connection instance
+        #self.logger.debug("Handle: %s" % self.transport.protocol.getHandle())
+        self.checkServer()
         self.client.serverConnectionEstablished(self)
+
+    def checkServer(self):
+        """Check server with Perspectives"""
+        if self.conf["WhiteList"]:
+            if self.conf["WhiteList"].contains(self.target):
+                self.logger.debug("Server %s whitelisted." % self.target)
+                return
+        if self.conf["Checker"] is None:
+            pass  # XXX Throw error
+        #cert = self.getServerCertificate()
+        # DEBUG starts here
+        #self.logger.info("Server subject is %s" % str(cert.getSubject()))
 
     def dataReceived(self, data):
         """Handle data received from server"""
@@ -96,6 +139,10 @@ class ProxyClient(Protocol):
         self.logger.debug("Breaking connection to server")
         self.transport.loseConnection()
         self.client = None
+
+    def getServerCertificate(self):
+        """Return the twisted.internet.ssl.Certificate instance for the server"""
+        return Certificate.peerFromTransport(self.transport)
 
 ######################################################################
 

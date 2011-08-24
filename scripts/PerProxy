@@ -193,16 +193,17 @@ def main(argv=None):
     if notaries_file:
         notaries_file = os.path.expanduser(args.notaries_file)
 
-    #Handler.checker = Checker(
-    #    notaries_file = notaries_file,
-    #    quorum_percentage=int(args.perspectives_quorum_percentage),
-    #    quorum_duration=int(args.perspectives_quorum_duration)
-    #    )
-
+    checker = Checker(
+        notaries_file = notaries_file,
+        quorum_percentage=int(args.perspectives_quorum_percentage),
+        quorum_duration=int(args.perspectives_quorum_duration)
+        )
+    perproxy_conf["Checker"] = checker
+    
     if args.whitelist_filename is not None:
         output.debug("Loading whitelist from %s" % (args.whitelist_filename))
         wl = WhiteList.from_file(os.path.expanduser(args.whitelist_filename))
-        #Handler.whitelist = wl
+        perproxy_conf["WhiteList"] = wl
 
     if args.error_template is None:
         output.debug("Loading error template from resources")
