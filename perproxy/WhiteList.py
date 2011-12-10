@@ -40,7 +40,7 @@ class WhiteList(list):
         for element in self:
             if element.re.match(server_name):
                 self.logger.debug(
-                    "Server {} matches whitelist element: {}".format(server_name,
+                    "Server {0} matches whitelist element: {1}".format(server_name,
                                                                      element.string))
                 return True
         return False
