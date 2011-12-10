@@ -315,9 +315,9 @@ class Handler(SocketServer.BaseRequestHandler):
         return line
 
     def recvall(self, buflen=8192):
-        """Given a non-blocking socket, read all panding data.
+        """Read all panding data.
 
-        Socket can be ssl.SSLSocket or M2Crypto.SSL.Connection."""
+        We must be in a nonblocking state."""
         chunks = []
         while True:
             try:
