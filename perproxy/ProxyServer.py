@@ -41,7 +41,12 @@ class Handler(SocketServer.BaseRequestHandler):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("Connection received.")
         
-        hostname, port = self.parse_connect_command()
+        try:
+            hostname, port = self.parse_connect_command()
+        except IOError as e:
+            self.logger.error("Error accepting new request: " + str(e))
+            self.close()
+            return
         self.logger.info("Target is %s:%s" % (hostname, port))
         self.logger = logging.LoggerAdapter(self.logger,
                                             { "target" : hostname })
@@ -286,7 +291,10 @@ class Handler(SocketServer.BaseRequestHandler):
         Return is (method, path, protocol, header_lines as a list of strings)"""
         # First line is request: GET /foo HTTP/1.0
         request = self.readline()
-        (method, path, protocol) = request.strip().split()
+        values = request.strip().split()
+        if len(values) != 3:
+            raise IOError("Failed to parse header")
+        (method, path, protocol) = values
         
         # Followed by N header lines until a blank line
         header_lines = []
