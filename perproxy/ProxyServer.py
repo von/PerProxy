@@ -227,15 +227,16 @@ class Handler(SocketServer.BaseRequestHandler):
                 continue
             for s in read_ready:
                 instance = instances[s]
-                self.logger.debug("Reading from %s" % instance)
+                out = peer[instance]
+                self.logger.debug("Reading from %s, writing to %s" % (instance, out))
                 try:
-                    data = instance.recvall()
+                    data_len = instance.read_all(out.sendall)
                 except IOError as e:
                     self.logger.error("Error reading from %s: %s" % (instance,
                                                                          str(e)))
                     done = True
                     break
-                if data is None:
+                if data_len is None:
                     # M2Crypto.SSL.Connection returns None sometimes.
                     # This does not indicate an EOF.  Be done if we
                     # see a lot of None reads in a row, might be causing
@@ -249,15 +250,11 @@ class Handler(SocketServer.BaseRequestHandler):
                         done = True
                         break
                 none_read_count = 0
-                if len(data) == 0:
+                if data_len == 0:
                     self.logger.info("Got EOF from %s" % instance)
                     done = True
                     break
-                out = peer[instance]
-                self.logger.debug("Writing %s bytes to %s" % (len(data),
-                                                                  out))
-                out.sendall(data)
-
+                self.logger.debug("Read %d bytes from %s and wrote to %s" % (data_len, instance, out))
         self.logger.info("Pass through done.")
 
     def handle_server_error(self, server_error):
@@ -343,6 +340,28 @@ class Handler(SocketServer.BaseRequestHandler):
                 break
             chunks.append(data)
         return "".join(chunks)
+
+    def read_all(self, callback, buflen=8192):
+        """Read buflen buffers, calling callback for each.
+
+        Returns total number of bytes read. 0 on EOF. None if None returned from read."""
+        total_read = 0
+        while True:
+            try:
+                data = self.request.recv(buflen)
+            except Exception as e:
+                self.logger.warning("Got error reading: %s" % str(e))
+                return 0  # Treat as EOF
+            if data is None:
+                if total_read == 0:
+                    # Indicate a sole None read
+                    total_read = None
+                break
+            total_read += len(data)
+            if len(data) == 0:
+                break
+            callback(data)
+        return total_read
 
     def __str__(self):
         return "client at %s:%s" % (self.client_address[0],

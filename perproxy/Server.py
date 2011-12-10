@@ -92,5 +92,32 @@ class Server:
             return None
         return "".join(chunks)
 
+    def read_all(self, callback, buflen=8192):
+        """Read buflen buffers, calling callback for each.
+
+        Returns total number of bytes read. 0 on EOF. None if None returned from read.
+
+        M2Crypto.SSL.Connection seems to randomly return None
+        sometimes after claiming it has data to read. This does not indicate
+        EOF. In this case, this function will return None and the caller
+        should not treat as an EOF."""
+        total_read = 0
+        while True:
+            try:
+                data = self.sock.recv(buflen)
+            except Exception as e:
+                self.logger.warning("Got error reading: %s" % str(e))
+                return 0  # Treat as EOF
+            if data is None:
+                if total_read == 0:
+                    # Indicate a sole None read
+                    total_read = None
+                break
+            total_read += len(data)
+            if len(data) == 0:
+                break
+            callback(data)
+        return total_read
+
     def __str__(self):
         return "server at %s:%s" % (self.hostname, self.port)
