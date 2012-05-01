@@ -5,12 +5,13 @@ the Perspectives Firefox extension [2], but to serve in instances when
 the extension cannot be used (e.g. you are using another browser, a
 version of Firefox that doesn't support the extension).
 
-Note that PerProxy has only been tested with Firefox 4.x at this
-time. It is most defintely a work in progress. Use at your own risk.
+Note that PerProxy has only been tested with Firefox 4.x.
 
 PerProxy acts as a SSL MITM, accepting SSL credentials from the
 browser and making certificates on the fly to imitate the expected
 server.
+
+PerProxy is a proof of concept and is no longer being developed.
 
 ==INSTALLATION==
 
