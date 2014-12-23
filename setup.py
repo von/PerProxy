@@ -28,7 +28,7 @@ setup(
             "conf/logging.config",
             ] },
     scripts = SCRIPTS,
-    install_requires=['pyPerspectives >= 0.2'],
+    install_requires=['pyPerspectives >= 0.5'],
 
     author = "Von Welch",
     author_email = "von@vwelch.com",
